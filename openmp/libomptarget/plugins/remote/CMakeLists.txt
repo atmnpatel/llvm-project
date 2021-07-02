@@ -24,19 +24,21 @@ find_package(gRPC CONFIG)
 find_program(PROTOC protoc)
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
 
+set(TRANSPORTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/transports/)
+
 if (Protobuf_FOUND AND gRPC_FOUND AND PROTOC AND GRPC_CPP_PLUGIN)
   libomptarget_say("Building remote offloading plugin.")
   set(directory "${CMAKE_BINARY_DIR}/include/openmp/libomptarget/plugins/remote/")
   file(MAKE_DIRECTORY ${directory})
   execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${directory})
   execute_process(
-          COMMAND protoc --cpp_out=${directory} -I ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/include/openmp.proto
-          COMMAND protoc --grpc_out=${directory} -I ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/include/openmp.proto --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
+          COMMAND protoc --cpp_out=${directory} -I ${TRANSPORTS_DIR}/grpc/ ${TRANSPORTS_DIR}/grpc/grpc.proto
+          COMMAND protoc --grpc_out=${directory} -I ${TRANSPORTS_DIR}/grpc/ ${TRANSPORTS_DIR}/grpc/grpc.proto --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
   )
 
   set(GRPC_SRC_FILES
-      ${directory}/openmp.grpc.pb.cc
-      ${directory}/openmp.pb.cc
+      ${directory}/grpc.grpc.pb.cc
+      ${directory}/grpc.pb.cc
   )
 
   set(GRPC_INCLUDE_DIR

@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package openmp.libomptarget.remote;
+package openmp.libomptarget.grpc;
 option cc_enable_arenas = true;
 
 service RemoteOffload {

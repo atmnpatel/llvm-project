@@ -14,13 +14,16 @@
 #include <future>
 
 #include "Server.h"
+#include "grpc.grpc.pb.h"
+#include "grpc.pb.h"
 #include "omptarget.h"
-#include "openmp.grpc.pb.h"
-#include "openmp.pb.h"
 
 using grpc::WriteOptions;
 
 extern std::promise<void> ShutdownPromise;
+
+namespace transports {
+namespace grpc {
 
 Status RemoteOffloadImpl::Shutdown(ServerContext *Context, const Null *Request,
                                    I32 *Reply) {
@@ -351,3 +354,5 @@ int32_t RemoteOffloadImpl::mapHostRTLDeviceId(int32_t RTLDeviceID) {
   }
   return RTLDeviceID;
 }
+} // namespace grpc
+} // namespace transports

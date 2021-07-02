@@ -13,7 +13,8 @@
 #include "Utils.h"
 #include "omptarget.h"
 
-namespace RemoteOffloading {
+namespace transports {
+namespace grpc {
 
 void loadTargetBinaryDescription(const __tgt_bin_desc *Desc,
                                  TargetBinaryDescription &Request) {
@@ -292,4 +293,5 @@ void dump(std::unordered_map<void *, __tgt_offload_entry *> &Map) {
     fprintf(stderr, "  Host (%p) -> Tgt (%p): Addr((%p))\n", Entry.first,
             (void *)Entry.second, (void *)Entry.second->addr);
 }
-} // namespace RemoteOffloading
+} // namespace grpc
+} // namespace transports

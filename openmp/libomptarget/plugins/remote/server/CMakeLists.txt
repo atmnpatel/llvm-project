@@ -14,12 +14,13 @@ include_directories(${LIBOMPTARGET_SRC_DIR})
 include_directories(${LIBOMPTARGET_INCLUDE_DIR})
 include_directories(${GRPC_INCLUDE_DIR})
 include_directories(${RPC_INCLUDE_DIR})
+include_directories(${TRANSPORTS_DIR})
 
 add_executable(openmp-offloading-server
         ${LIBOMPTARGET_SRC_FILES}
         ${GRPC_SRC_FILES}
-        ${RPC_SRC_DIR}/Utils.cpp
-        Server.cpp
+        ${TRANSPORTS_DIR}/grpc/Utils.cpp
+        ${TRANSPORTS_DIR}/grpc/Server.cpp
         OffloadingServer.cpp
 )
 

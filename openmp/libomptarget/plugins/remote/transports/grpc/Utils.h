@@ -14,9 +14,9 @@
 #define UTILS_H
 
 #include "Debug.h"
+#include "grpc.grpc.pb.h"
+#include "grpc.pb.h"
 #include "omptarget.h"
-#include "openmp.grpc.pb.h"
-#include "openmp.pb.h"
 #include "rtl.h"
 #include <string>
 
@@ -38,14 +38,15 @@
     }                                                                          \
   }
 
-namespace RemoteOffloading {
+namespace transports {
+namespace grpc {
 
-using namespace openmp::libomptarget::remote;
+using namespace openmp::libomptarget::grpc;
 
-using openmp::libomptarget::remote::DeviceOffloadEntry;
-using openmp::libomptarget::remote::TargetBinaryDescription;
-using openmp::libomptarget::remote::TargetOffloadEntry;
-using openmp::libomptarget::remote::TargetTable;
+using openmp::libomptarget::grpc::DeviceOffloadEntry;
+using openmp::libomptarget::grpc::TargetBinaryDescription;
+using openmp::libomptarget::grpc::TargetOffloadEntry;
+using openmp::libomptarget::grpc::TargetTable;
 
 struct ClientManagerConfigTy {
   std::vector<std::string> ServerAddresses;
@@ -128,6 +129,7 @@ void dump(__tgt_offload_entry *Entry);
 void dump(TargetOffloadEntry Entry);
 void dump(__tgt_target_table *Table);
 void dump(__tgt_device_image *Image);
-} // namespace RemoteOffloading
+} // namespace grpc
+} // namespace transports
 
 #endif

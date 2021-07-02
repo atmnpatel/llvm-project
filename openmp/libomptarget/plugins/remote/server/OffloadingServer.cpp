@@ -16,7 +16,7 @@
 #include <iostream>
 #include <thread>
 
-#include "Server.h"
+#include "grpc/Server.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -24,28 +24,36 @@ using grpc::ServerBuilder;
 std::promise<void> ShutdownPromise;
 
 int main() {
-  ClientManagerConfigTy Config;
+  auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
 
-  RemoteOffloadImpl Service(Config.MaxSize, Config.BlockSize);
+  if (!Protocol || !strcmp(Protocol, "GRPC")) {
+    transports::grpc::ClientManagerConfigTy Config;
 
-  ServerBuilder Builder;
-  Builder.AddListeningPort(Config.ServerAddresses[0],
-                           grpc::InsecureServerCredentials());
-  Builder.RegisterService(&Service);
-  Builder.SetMaxMessageSize(INT_MAX);
-  std::unique_ptr<Server> Server(Builder.BuildAndStart());
-  if (getDebugLevel())
-    std::cerr << "Server listening on " << Config.ServerAddresses[0]
-              << std::endl;
+    transports::grpc::RemoteOffloadImpl Service(Config.MaxSize, Config.BlockSize);
 
-  auto WaitForServer = [&]() { Server->Wait(); };
+    ServerBuilder Builder;
+    Builder.AddListeningPort(Config.ServerAddresses[0],
+                             grpc::InsecureServerCredentials());
+    Builder.RegisterService(&Service);
+    Builder.SetMaxMessageSize(INT_MAX);
+    std::unique_ptr<Server> Server(Builder.BuildAndStart());
+    if (getDebugLevel())
+      std::cerr << "Server listening on " << Config.ServerAddresses[0]
+                << std::endl;
 
-  std::thread ServerThread(WaitForServer);
+    auto WaitForServer = [&]() { Server->Wait(); };
 
-  auto ShutdownFuture = ShutdownPromise.get_future();
-  ShutdownFuture.wait();
-  Server->Shutdown();
-  ServerThread.join();
+    std::thread ServerThread(WaitForServer);
 
-  return 0;
+    auto ShutdownFuture = ShutdownPromise.get_future();
+    ShutdownFuture.wait();
+    Server->Shutdown();
+    ServerThread.join();
+
+    return 0;
+  }
+
+  if (!strcmp(Protocol, "UCX")) {
+
+  }
 }

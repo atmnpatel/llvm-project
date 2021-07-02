@@ -17,9 +17,9 @@
 
 #include "Utils.h"
 #include "device.h"
+#include "grpc.grpc.pb.h"
+#include "grpc.pb.h"
 #include "omptarget.h"
-#include "openmp.grpc.pb.h"
-#include "openmp.pb.h"
 #include "rtl.h"
 
 using grpc::ServerContext;
@@ -27,12 +27,13 @@ using grpc::ServerReader;
 using grpc::ServerWriter;
 using grpc::Status;
 
-using namespace openmp::libomptarget::remote;
-using namespace RemoteOffloading;
-
+using namespace openmp::libomptarget::grpc;
 using namespace google;
 
 extern PluginManager *PM;
+
+namespace transports {
+namespace grpc {
 
 class RemoteOffloadImpl final : public RemoteOffload::Service {
 private:
@@ -102,5 +103,8 @@ public:
                              const TargetTeamRegion *Request,
                              I32 *Reply) override;
 };
+
+} // namespace grpc
+} // namespace transports
 
 #endif

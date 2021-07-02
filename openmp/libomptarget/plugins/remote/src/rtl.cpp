@@ -15,25 +15,26 @@
 #include <string>
 
 #include "Client.h"
-#include "Utils.h"
+#include "grpc/Client.h"
+#include "grpc/Utils.h"
 #include "omptarget.h"
 #include "omptargetplugin.h"
 
 #define TARGET_NAME RPC
 #define DEBUG_PREFIX "Target " GETNAME(TARGET_NAME) " RTL"
 
-RemoteClientManager *Manager;
+BaseClientManagerTy *Manager;
 
 __attribute__((constructor(101))) void initRPC() {
   DP("Init RPC library!\n");
 
-  Manager = new RemoteClientManager();
+  Manager = (BaseClientManagerTy *) new transports::grpc::ClientManagerTy();
 }
 
 __attribute__((destructor(101))) void deinitRPC() {
   Manager->shutdown(); // TODO: Error handle shutting down
   DP("Deinit RPC library!\n");
-  delete Manager;
+  delete (transports::grpc::ClientManagerTy *) Manager;
 }
 
 // Exposed library API function
