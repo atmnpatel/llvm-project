@@ -20,6 +20,7 @@
 #include <dlfcn.h>
 #include <mutex>
 #include <string>
+#include <vector>
 
 // List of all plugins that can support offloading.
 static const char *RTLNames[] = {
@@ -78,6 +79,10 @@ void RTLsTy::LoadRTLs() {
   // Attempt to open all the plugins and, if they exist, check if the interface
   // is correct and if they are supporting any devices.
   for (auto *Name : RTLNames) {
+    if (std::find(BlocklistedRTLs.begin(), BlocklistedRTLs.end(), Name) !=
+        BlocklistedRTLs.end()) {
+      continue;
+    }
     DP("Loading library '%s'...\n", Name);
     void *dynlib_handle = dlopen(Name, RTLD_NOW);
 

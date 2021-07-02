@@ -114,6 +114,9 @@ struct RTLsTy {
   // binaries.
   std::vector<RTLInfoTy *> UsedRTLs;
 
+  // Vector of RTLs disabled by the remote plugin.
+  std::vector<std::string> BlocklistedRTLs;
+
   int64_t RequiresFlags = OMP_REQ_UNDEFINED;
 
   explicit RTLsTy() = default;
