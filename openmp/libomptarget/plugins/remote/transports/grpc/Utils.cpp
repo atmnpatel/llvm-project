@@ -13,7 +13,7 @@
 #include "Utils.h"
 #include "omptarget.h"
 
-namespace transports {
+namespace transport {
 namespace grpc {
 
 void loadTargetBinaryDescription(const __tgt_bin_desc *Desc,
@@ -294,4 +294,4 @@ void dump(std::unordered_map<void *, __tgt_offload_entry *> &Map) {
             (void *)Entry.second, (void *)Entry.second->addr);
 }
 } // namespace grpc
-} // namespace transports
+} // namespace transport

@@ -23,7 +23,7 @@ using grpc::ClientReader;
 using grpc::ClientWriter;
 using grpc::Status;
 
-namespace transports {
+namespace transport {
 namespace grpc {
 
 template <typename Fn1, typename Fn2, typename TReturn>
@@ -190,7 +190,7 @@ int32_t ClientTy::initDevice(int32_t DeviceId) {
       /* Error Value */ -1);
 }
 
-int32_t ClientTy::initRequires(int64_t RequiresFlags) {
+int64_t ClientTy::initRequires(int64_t RequiresFlags) {
   return remoteCall(
       /* Preprocessor */
       [&](auto &RPCStatus, auto &Context) {
@@ -630,7 +630,7 @@ int32_t ClientManagerTy::initDevice(int32_t DeviceId) {
   return Clients[ClientIdx].initDevice(DeviceIdx);
 }
 
-int32_t ClientManagerTy::initRequires(int64_t RequiresFlags) {
+int64_t ClientManagerTy::initRequires(int64_t RequiresFlags) {
   for (auto &Client : Clients)
     Client.initRequires(RequiresFlags);
 
@@ -710,4 +710,4 @@ int32_t ClientManagerTy::runTargetTeamRegion(int32_t DeviceId,
                                                 ThreadLimit, LoopTripCount);
 }
 } // namespace grpc
-} // namespace transports
+} // namespace transport

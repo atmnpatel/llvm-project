@@ -20,24 +20,37 @@ include_directories(${LIBOMPTARGET_INCLUDE_DIR})
 include_directories(${GRPC_INCLUDE_DIR})
 include_directories(${RPC_INCLUDE_DIR})
 include_directories(${TRANSPORTS_DIR})
+include_directories(/home/apatel/dev/ucx/install/include)
 
-add_library(omptarget.rtl.rpc SHARED
+set(LLVM_LINK_COMPONENTS
+        Support
+        )
+
+add_llvm_library(omptarget.rtl.rpc SHARED
         ${LIBOMPTARGET_SRC_FILES}
         ${GRPC_SRC_FILES}
         ${TRANSPORTS_DIR}/grpc/Utils.cpp
         ${TRANSPORTS_DIR}/grpc/Client.cpp
         rtl.cpp
-)
+        )
+
+llvm_update_compile_flags(omptarget.rtl.rpc)
+
+target_compile_features(omptarget.rtl.rpc PRIVATE cxx_std_20)
 
 # Install plugin under the lib destination folder.
 install(TARGETS omptarget.rtl.rpc LIBRARY DESTINATION "${OPENMP_INSTALL_LIBDIR}")
 
-target_link_libraries(omptarget.rtl.rpc
-  grpc++
-  protobuf
-  "-ldl"
-  ${OPENMP_PTHREAD_LIB}
-  "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports")
+target_link_libraries(omptarget.rtl.rpc PRIVATE
+        protobuf
+        grpc++
+        dl
+        "-L /home/apatel/dev/ucx/install/lib"
+        ${OPENMP_PTHREAD_LIB}
+        "-fopenmp"
+        "-g -fno-omit-frame-pointer"
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
+        )
 
 # Report to the parent scope that we are building a plugin for RPC.
 set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} rpc" PARENT_SCOPE)

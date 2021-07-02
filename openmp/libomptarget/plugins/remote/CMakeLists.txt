@@ -26,6 +26,8 @@ find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
 
 set(TRANSPORTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/transports/)
 
+set(CMAKE_CXX_STANDARD 20)
+
 if (Protobuf_FOUND AND gRPC_FOUND AND PROTOC AND GRPC_CPP_PLUGIN)
   libomptarget_say("Building remote offloading plugin.")
   set(directory "${CMAKE_BINARY_DIR}/include/openmp/libomptarget/plugins/remote/")

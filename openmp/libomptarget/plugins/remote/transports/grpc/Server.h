@@ -32,7 +32,7 @@ using namespace google;
 
 extern PluginManager *PM;
 
-namespace transports {
+namespace transport {
 namespace grpc {
 
 class RemoteOffloadImpl final : public RemoteOffload::Service {
@@ -53,6 +53,8 @@ private:
 public:
   RemoteOffloadImpl(uint64_t MaxSize, uint64_t BlockSize)
       : MaxSize(MaxSize), BlockSize(BlockSize) {
+    PM->RTLs.BlocklistedRTLs = {"libomptarget.rtl.ucx.so",
+                                "libomptarget.rtl.rpc.so"};
     DebugLevel = getDebugLevel();
     Arena = std::make_unique<protobuf::Arena>();
   }
@@ -105,6 +107,6 @@ public:
 };
 
 } // namespace grpc
-} // namespace transports
+} // namespace transport
 
 #endif

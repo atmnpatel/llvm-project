@@ -19,7 +19,7 @@ public:
   virtual int32_t getNumberOfDevices() = 0;
 
   virtual int32_t initDevice(int32_t DeviceId) = 0;
-  virtual int32_t initRequires(int64_t RequiresFlags) = 0;
+  virtual int64_t initRequires(int64_t RequiresFlags) = 0;
 
   virtual __tgt_target_table *loadBinary(int32_t DeviceId,
                                          __tgt_device_image *Image) = 0;
@@ -65,7 +65,7 @@ public:
   virtual int32_t getNumberOfDevices() = 0;
 
   virtual int32_t initDevice(int32_t DeviceId) = 0;
-  virtual int32_t initRequires(int64_t RequiresFlags) = 0;
+  virtual int64_t initRequires(int64_t RequiresFlags) = 0;
 
   virtual __tgt_target_table *loadBinary(int32_t DeviceId,
                                          __tgt_device_image *Image) = 0;

@@ -22,7 +22,7 @@ using grpc::WriteOptions;
 
 extern std::promise<void> ShutdownPromise;
 
-namespace transports {
+namespace transport {
 namespace grpc {
 
 Status RemoteOffloadImpl::Shutdown(ServerContext *Context, const Null *Request,
@@ -355,4 +355,4 @@ int32_t RemoteOffloadImpl::mapHostRTLDeviceId(int32_t RTLDeviceID) {
   return RTLDeviceID;
 }
 } // namespace grpc
-} // namespace transports
+} // namespace transport

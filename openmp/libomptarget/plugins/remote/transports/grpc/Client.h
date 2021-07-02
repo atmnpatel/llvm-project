@@ -23,14 +23,14 @@
 #include <mutex>
 #include <numeric>
 
-#include "../../src/Client.h"
+#include "../../src/BaseClient.h"
 
 using grpc::Channel;
 using openmp::libomptarget::grpc::RemoteOffload;
 
 using namespace google;
 
-namespace transports {
+namespace transport {
 namespace grpc {
 class ClientTy final : public BaseClientTy {
   const int Timeout;
@@ -75,7 +75,7 @@ public:
   int32_t getNumberOfDevices() override;
 
   int32_t initDevice(int32_t DeviceId) override;
-  int32_t initRequires(int64_t RequiresFlags) override;
+  int64_t initRequires(int64_t RequiresFlags) override;
 
   __tgt_target_table *loadBinary(int32_t DeviceId,
                                  __tgt_device_image *Image) override;
@@ -132,7 +132,7 @@ public:
   int32_t getNumberOfDevices() override;
 
   int32_t initDevice(int32_t DeviceId) override;
-  int32_t initRequires(int64_t RequiresFlags) override;
+  int64_t initRequires(int64_t RequiresFlags) override;
 
   __tgt_target_table *loadBinary(int32_t DeviceId,
                                  __tgt_device_image *Image) override;

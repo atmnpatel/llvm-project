@@ -11,12 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <cstddef>
-#include <memory>
 #include <string>
 
-#include "Client.h"
 #include "grpc/Client.h"
-#include "grpc/Utils.h"
 #include "omptarget.h"
 #include "omptargetplugin.h"
 
@@ -28,13 +25,20 @@ BaseClientManagerTy *Manager;
 __attribute__((constructor(101))) void initRPC() {
   DP("Init RPC library!\n");
 
-  Manager = (BaseClientManagerTy *) new transports::grpc::ClientManagerTy();
+  auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
+
+  if (!Protocol || !strcmp(Protocol, "GRPC"))
+    Manager = (BaseClientManagerTy *)new transport::grpc::ClientManagerTy();
 }
 
 __attribute__((destructor(101))) void deinitRPC() {
   Manager->shutdown(); // TODO: Error handle shutting down
   DP("Deinit RPC library!\n");
-  delete (transports::grpc::ClientManagerTy *) Manager;
+
+  auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
+
+  if (!Protocol || !strcmp(Protocol, "GRPC"))
+    delete (transport::grpc::ClientManagerTy *)Manager;
 }
 
 // Exposed library API function

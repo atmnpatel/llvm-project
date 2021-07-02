@@ -18,25 +18,22 @@
 
 #include "grpc/Server.h"
 
-using grpc::Server;
-using grpc::ServerBuilder;
-
 std::promise<void> ShutdownPromise;
 
 int main() {
   auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
 
   if (!Protocol || !strcmp(Protocol, "GRPC")) {
-    transports::grpc::ClientManagerConfigTy Config;
+    transport::grpc::ClientManagerConfigTy Config;
 
-    transports::grpc::RemoteOffloadImpl Service(Config.MaxSize, Config.BlockSize);
+    transport::grpc::RemoteOffloadImpl Service(Config.MaxSize, Config.BlockSize);
 
-    ServerBuilder Builder;
+    grpc::ServerBuilder Builder;
     Builder.AddListeningPort(Config.ServerAddresses[0],
                              grpc::InsecureServerCredentials());
     Builder.RegisterService(&Service);
     Builder.SetMaxMessageSize(INT_MAX);
-    std::unique_ptr<Server> Server(Builder.BuildAndStart());
+    std::unique_ptr<grpc::Server> Server(Builder.BuildAndStart());
     if (getDebugLevel())
       std::cerr << "Server listening on " << Config.ServerAddresses[0]
                 << std::endl;
@@ -51,9 +48,5 @@ int main() {
     ServerThread.join();
 
     return 0;
-  }
-
-  if (!strcmp(Protocol, "UCX")) {
-
   }
 }

@@ -15,17 +15,31 @@ include_directories(${LIBOMPTARGET_INCLUDE_DIR})
 include_directories(${GRPC_INCLUDE_DIR})
 include_directories(${RPC_INCLUDE_DIR})
 include_directories(${TRANSPORTS_DIR})
+include_directories(/home/apatel/dev/ucx/install/include)
 
-add_executable(openmp-offloading-server
+set(LLVM_LINK_COMPONENTS
+        Support
+        )
+
+add_llvm_executable(openmp-offloading-server
         ${LIBOMPTARGET_SRC_FILES}
-        ${GRPC_SRC_FILES}
-        ${TRANSPORTS_DIR}/grpc/Utils.cpp
-        ${TRANSPORTS_DIR}/grpc/Server.cpp
         OffloadingServer.cpp
-)
+        ${TRANSPORTS_DIR}/grpc/Client.cpp
+        ${TRANSPORTS_DIR}/grpc/Server.cpp
+        ${TRANSPORTS_DIR}/grpc/Utils.cpp
+        ${GRPC_SRC_FILES}
+        )
 
-target_link_libraries(openmp-offloading-server
-        grpc++
+llvm_update_compile_flags(openmp-offloading-server)
+
+target_compile_features(openmp-offloading-server PRIVATE cxx_std_20)
+
+target_link_libraries(openmp-offloading-server PRIVATE
         protobuf
+        grpc++
+        dl
         ${OPENMP_PTHREAD_LIB}
-        "-ldl" "-lomp" "-fopenmp" "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports")
+        "-fopenmp"
+        "-g -fno-omit-frame-pointer"
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
+        )

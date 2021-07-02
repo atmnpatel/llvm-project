@@ -19,26 +19,9 @@
 #include "omptarget.h"
 #include "rtl.h"
 #include <string>
+#include "BaseUtils.h"
 
-#define CLIENT_DBG(...)                                                        \
-  {                                                                            \
-    if (DebugLevel > 0) {                                                      \
-      fprintf(stderr, "[[Client]] --> ");                                      \
-      fprintf(stderr, __VA_ARGS__);                                            \
-      fprintf(stderr, "\n");                                                   \
-    }                                                                          \
-  }
-
-#define SERVER_DBG(...)                                                        \
-  {                                                                            \
-    if (DebugLevel > 0) {                                                      \
-      fprintf(stderr, "[[Server]] --> ");                                      \
-      fprintf(stderr, __VA_ARGS__);                                            \
-      fprintf(stderr, "\n");                                                   \
-    }                                                                          \
-  }
-
-namespace transports {
+namespace transport {
 namespace grpc {
 
 using namespace openmp::libomptarget::grpc;
@@ -130,6 +113,6 @@ void dump(TargetOffloadEntry Entry);
 void dump(__tgt_target_table *Table);
 void dump(__tgt_device_image *Image);
 } // namespace grpc
-} // namespace transports
+} // namespace transport
 
 #endif
