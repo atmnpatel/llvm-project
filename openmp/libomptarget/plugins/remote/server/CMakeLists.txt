@@ -15,7 +15,7 @@ include_directories(${LIBOMPTARGET_INCLUDE_DIR})
 include_directories(${GRPC_INCLUDE_DIR})
 include_directories(${RPC_INCLUDE_DIR})
 include_directories(${TRANSPORTS_DIR})
-include_directories(/home/apatel/dev/ucx/install/include)
+include_directories(/opt/ucx/include)
 
 set(LLVM_LINK_COMPONENTS
         Support
@@ -24,9 +24,12 @@ set(LLVM_LINK_COMPONENTS
 add_llvm_executable(openmp-offloading-server
         ${LIBOMPTARGET_SRC_FILES}
         OffloadingServer.cpp
-        ${TRANSPORTS_DIR}/grpc/Client.cpp
         ${TRANSPORTS_DIR}/grpc/Server.cpp
         ${TRANSPORTS_DIR}/grpc/Utils.cpp
+        ${TRANSPORTS_DIR}/ucx/Server.cpp
+        ${TRANSPORTS_DIR}/ucx/Base.cpp
+        ${TRANSPORTS_DIR}/ucx/Serialization.cpp
+        ${TRANSPORTS_DIR}/ucx/Utils.cpp
         ${GRPC_SRC_FILES}
         )
 
@@ -38,6 +41,10 @@ target_link_libraries(openmp-offloading-server PRIVATE
         protobuf
         grpc++
         dl
+        ucp
+        ucs
+        uct
+        "-L /opt/ucx/lib"
         ${OPENMP_PTHREAD_LIB}
         "-fopenmp"
         "-g -fno-omit-frame-pointer"

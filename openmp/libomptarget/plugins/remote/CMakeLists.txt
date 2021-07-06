@@ -36,11 +36,13 @@ if (Protobuf_FOUND AND gRPC_FOUND AND PROTOC AND GRPC_CPP_PLUGIN)
   execute_process(
           COMMAND protoc --cpp_out=${directory} -I ${TRANSPORTS_DIR}/grpc/ ${TRANSPORTS_DIR}/grpc/grpc.proto
           COMMAND protoc --grpc_out=${directory} -I ${TRANSPORTS_DIR}/grpc/ ${TRANSPORTS_DIR}/grpc/grpc.proto --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
+          COMMAND protoc --cpp_out=${directory} -I ${TRANSPORTS_DIR}/ucx/ ${TRANSPORTS_DIR}/ucx/ucx.proto
   )
 
   set(GRPC_SRC_FILES
       ${directory}/grpc.grpc.pb.cc
       ${directory}/grpc.pb.cc
+      ${directory}/ucx.pb.cc
   )
 
   set(GRPC_INCLUDE_DIR

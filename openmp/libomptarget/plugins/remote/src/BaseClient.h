@@ -48,7 +48,6 @@ public:
 
 class BaseClientManagerTy {
 protected:
-  int DebugLevel;
   std::vector<int> Devices;
 
   virtual std::pair<int32_t, int32_t> mapDeviceId(int32_t DeviceId) = 0;

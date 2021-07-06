@@ -1,0 +1,427 @@
+#include "Base.h"
+#include "ucp/api/ucp.h"
+#include "ucs/type/thread_mode.h"
+#include "llvm/Support/ErrorHandling.h"
+
+namespace transport {
+namespace ucx {
+
+ContextTy::ContextTy() {
+  ucp_params_t Params = {.field_mask = UCP_PARAM_FIELD_FEATURES,
+                         .features = UCP_FEATURE_TAG | UCP_FEATURE_WAKEUP};
+
+  if (auto Status = ucp_init(&Params, NULL, &Context))
+    llvm::report_fatal_error(
+        llvm::formatv("failed to ucp_init {0}\n", ucs_status_string(Status))
+            .str());
+}
+
+ContextTy::~ContextTy() noexcept { ucp_cleanup(Context); }
+
+void WorkerTy::initialize(ucp_context_h *Context) {
+  ucp_worker_params_t Params = {.field_mask =
+                                    UCP_WORKER_PARAM_FIELD_THREAD_MODE,
+                                .thread_mode = UCS_THREAD_MODE_SERIALIZED};
+
+  if (auto Status = ucp_worker_create(*Context, &Params, &Worker))
+    llvm::report_fatal_error(
+        llvm::formatv("Could not initialize another worker {0}\n",
+                      ucs_status_string(Status))
+            .str());
+
+  Initialized = true;
+}
+
+void WorkerTy::wait(RequestStatus *Request) {
+  ucs_status_t Status;
+
+  if (UCS_PTR_IS_ERR(Request)) {
+    Status = UCS_PTR_STATUS(Request);
+  } else if (UCS_PTR_IS_PTR(Request)) {
+    while (!Request->Complete)
+      ucp_worker_progress(Worker);
+
+    Request->Complete = 0;
+    Status = ucp_request_check_status(Request);
+    ucp_request_release(Request);
+
+    if (Status != UCS_OK)
+      llvm::report_fatal_error(
+          llvm::formatv("unable to {0}\n", ucs_status_string(Status)).str());
+  }
+}
+
+WorkerTy::WorkerTy(ucp_context_h *Context) { initialize(Context); }
+
+WorkerTy::~WorkerTy() {
+  if (Initialized)
+    ucp_worker_destroy(Worker);
+}
+
+SendFutureTy WorkerTy::asyncSend(ucp_ep_h EP, const uint64_t Tag,
+                                 const char *Message, const size_t Size) {
+  RequestStatus *Req;
+  RequestStatus *Ctx = new RequestStatus();
+
+  Ctx->Complete = 0;
+  ucp_request_param_t Param = {.op_attr_mask = UCP_OP_ATTR_FIELD_CALLBACK |
+                                               UCP_OP_ATTR_FIELD_USER_DATA,
+                               .cb = {.send = sendCallback},
+                               .user_data = Ctx};
+  Req = (RequestStatus *)ucp_tag_send_nbx(EP, Message, Size, Tag, &Param);
+
+  if (Req == NULL)
+    return {};
+
+  if (UCS_PTR_IS_ERR(Req))
+    llvm::report_fatal_error(
+        llvm::formatv("failed to send message {0}\n",
+                      ucs_status_string(UCS_PTR_STATUS(Req)))
+            .str());
+
+  return {Req, Ctx, Message};
+}
+
+ReceiveFutureTy WorkerTy::asyncReceive(const uint64_t Tag, Decoder &D,
+                                       std::vector<SlabTy> &Slabs) {
+  ucp_tag_recv_info_t InfoTag;
+  ucs_status_t Status;
+  ucp_tag_message_h MsgTag;
+
+  while (1) {
+    MsgTag = ucp_tag_probe_nb(Worker, Tag, TAG_MASK, 1, &InfoTag);
+    if (MsgTag != NULL)
+      break;
+    if (ucp_worker_progress(Worker))
+      continue;
+
+    Status = ucp_worker_wait(Worker);
+    if (Status != UCS_OK) {
+      llvm::report_fatal_error(
+          llvm::formatv("Failed to send message {0}", ucs_status_string(Status))
+              .str());
+    }
+  }
+
+  RequestStatus *Request;
+  char *Message = (char *)malloc(InfoTag.length);
+  Request = (RequestStatus *)ucp_tag_msg_recv_nb(
+      Worker, Message, InfoTag.length, ucp_dt_make_contig(1), MsgTag,
+      receiveCallback);
+
+  if (!Request) {
+    auto [Slab, SlabNum] = D.parseSlabHeader(Message);
+    Slabs[SlabNum - 1] = Slab;
+    return {};
+  }
+
+  if (UCS_PTR_IS_ERR(Request))
+    llvm::report_fatal_error(
+        llvm::formatv("Failed to send message {0}\n",
+                      ucs_status_string(UCS_PTR_STATUS(Request)))
+            .str());
+
+  return {Request, Message};
+}
+
+std::string WorkerTy::receive(const uint64_t Tag) {
+  ucp_tag_recv_info_t InfoTag;
+  ucs_status_t Status;
+  ucp_tag_message_h MsgTag;
+
+  while (1) {
+    MsgTag = ucp_tag_probe_nb(Worker, Tag, TAG_MASK, 1, &InfoTag);
+    if (MsgTag != NULL)
+      break;
+    if (ucp_worker_progress(Worker))
+      continue;
+
+    Status = ucp_worker_wait(Worker);
+    if (Status != UCS_OK) {
+      llvm::report_fatal_error("Failed to send message {0}", ucs_status_string(Status));
+    }
+  }
+
+  char *Message = (char *)malloc(InfoTag.length);
+  RequestStatus *Request = (RequestStatus *)ucp_tag_msg_recv_nb(
+      Worker, Message, InfoTag.length, ucp_dt_make_contig(1), MsgTag,
+      receiveCallback);
+
+  wait(Request);
+
+  std::string MessageStr(Message, InfoTag.length);
+  return MessageStr;
+}
+
+Endpoint::Endpoint(ucp_worker_h Worker, ucp_conn_request_h ConnRequest)
+    : DataWorker(Worker) {
+
+  ucp_ep_params_t Params = {.field_mask = UCP_EP_PARAM_FIELD_ERR_HANDLER |
+                                          UCP_EP_PARAM_FIELD_CONN_REQUEST,
+                            .err_handler = {.cb = errorCallback, .arg = &Connected},
+                            .conn_request = ConnRequest};
+
+  if (auto Status = ucp_ep_create(Worker, &Params, &EP))
+    llvm::report_fatal_error(
+        llvm::formatv("failed to create an endpoint on the server: {0}\n",
+                      ucs_status_string(Status))
+            .str());
+}
+
+Endpoint::Endpoint(ucp_worker_h Worker, const ConnectionConfigTy &Config) {
+  struct sockaddr_in ConnectAddress;
+
+  ConnectAddress.sin_family = AF_INET;
+  ConnectAddress.sin_addr.s_addr = inet_addr(Config.Address.c_str());
+  ConnectAddress.sin_port = htons(Config.Port);
+
+  ucp_ep_params_t Params = {
+      .field_mask = UCP_EP_PARAM_FIELD_FLAGS | UCP_EP_PARAM_FIELD_SOCK_ADDR |
+                    UCP_EP_PARAM_FIELD_ERR_HANDLER |
+                    UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE,
+      .err_mode = UCP_ERR_HANDLING_MODE_PEER,
+      .err_handler = {.cb = errorCallback, .arg = &Connected},
+      .flags = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER,
+      .sockaddr = {.addr = (struct sockaddr *)&ConnectAddress,
+                   .addrlen = sizeof(ConnectAddress)}};
+
+  if (auto Status = ucp_ep_create(Worker, &Params, &EP))
+    llvm::report_fatal_error(
+        llvm::formatv("Failed to connect to address ({0})\n",
+                      std::string(ucs_status_string(Status)))
+            .str());
+}
+
+Endpoint::~Endpoint() {
+  ucp_request_param_t Param = {.op_attr_mask = UCP_OP_ATTR_FIELD_FLAGS,
+                               .flags = UCP_EP_CLOSE_FLAG_FORCE};
+  void *CloseEPRequest = ucp_ep_close_nbx(EP, &Param);
+  if (UCS_PTR_IS_PTR(CloseEPRequest)) {
+    ucs_status_t Status;
+    do {
+      ucp_worker_progress(DataWorker);
+      Status = ucp_request_check_status(CloseEPRequest);
+    } while (Status == UCS_INPROGRESS);
+
+    ucp_request_free(CloseEPRequest);
+  } else if (UCS_PTR_STATUS(CloseEPRequest) != UCS_OK) {
+    llvm::report_fatal_error(
+        llvm::formatv("failed to close ep {0}\n", (void *)EP).str());
+  }
+}
+
+Base::TagTy::TagTy(const TagTy &T) { Tag = T.Tag; }
+
+uint64_t Base::TagTy::nextRequest() {
+  Tag = ((Tag >> 16) + 1) << 16;
+  IntermediateTag = Tag;
+  return Tag;
+}
+
+uint64_t Base::TagTy::nextIntermediateTag() {
+  IntermediateTag++;
+  return IntermediateTag;
+}
+
+Base::TagTy::operator uint64_t() { return Tag; }
+
+Base::InterfaceTy::InterfaceTy(ContextTy &Context, AllocatorTy *Allocator,
+                               const ConnectionConfigTy &Config)
+    : Worker(Context), EP(Worker, Config), Allocator(Allocator) {}
+Base::InterfaceTy::InterfaceTy(ContextTy &Context, AllocatorTy *Allocator,
+                               ucp_conn_request_h ConnRequest)
+    : Worker(Context), EP(Worker, ConnRequest), Allocator(Allocator) {}
+
+std::vector<SlabTy>
+Base::InterfaceTy::asyncReceive(Decoder &D,
+                                std::queue<ReceiveFutureTy> &Futures) {
+  auto SlabTag = LastRecvTag.nextRequest();
+
+  auto Buffer = Worker.receive(SlabTag);
+  SlabTag++;
+  auto NumSlabs = D.parseHeader(Buffer.data());
+
+  std::vector<SlabTy> Slabs(NumSlabs - 1);
+  for (size_t Idx = 1; Idx < NumSlabs; Idx++, SlabTag++) {
+    Futures.emplace(Worker.asyncReceive(SlabTag, D, Slabs));
+  }
+
+  return Slabs;
+}
+void Base::InterfaceTy::send(const SlabListTy &Messages) {
+  auto Queue = asyncSend(Messages);
+
+  while (!Queue.empty()) {
+    await(Queue.front());
+    if (!EP.Connected) return;
+    Queue.pop();
+  }
+}
+
+void Base::InterfaceTy::send(const std::vector<std::string> &Messages) {
+  auto Queue = asyncSend(Messages);
+
+  while (!Queue.empty()) {
+    await(Queue.front());
+    Queue.pop();
+  }
+}
+
+std::queue<SendFutureTy>
+Base::InterfaceTy::asyncSend(const SlabListTy &Messages) {
+  std::queue<SendFutureTy> SendFutures;
+  auto SlabTag = LastSendTag.nextRequest();
+
+  for (size_t Idx = 0; Idx < Messages.size(); Idx++, SlabTag++)
+    SendFutures.emplace(
+        Worker.asyncSend(EP, SlabTag, Messages[Idx].Begin, Messages[Idx].Size));
+
+  return SendFutures;
+}
+
+std::queue<SendFutureTy>
+Base::InterfaceTy::asyncSend(const std::vector<std::string> &Messages) {
+  std::queue<SendFutureTy> SendFutures;
+  auto SlabTag = LastSendTag.nextRequest();
+
+  for (size_t Idx = 0; Idx < Messages.size(); Idx++, SlabTag++)
+    SendFutures.emplace(Worker.asyncSend(EP, SlabTag, Messages[Idx].data(),
+                                         Messages[Idx].length()));
+
+  return SendFutures;
+}
+
+void Base::InterfaceTy::await(SendFutureTy &Future) {
+  if (Future.Request == nullptr)
+    return;
+
+  if (Future.Request != NULL && UCS_PTR_IS_ERR(Future.Request)) {
+    DP("Failed to send message (%s)\n",
+       ucs_status_string(UCS_PTR_STATUS(Future.Request)));
+    llvm::report_fatal_error(
+        llvm::formatv("Failed to send message {0}\n",
+                      ucs_status_string(UCS_PTR_STATUS(Future.Request)))
+            .str());
+  }
+
+  while (Future.Context->Complete == 0)
+    ucp_worker_progress(Worker);
+
+  ucs_status_t Status = ucp_request_check_status(Future.Request);
+  ucp_request_free(Future.Request);
+
+  if (Status != UCS_OK && !EP.Connected)
+    llvm::report_fatal_error(
+        llvm::formatv("failed to send message {0}\n", ucs_status_string(Status))
+            .str());
+}
+
+void Base::InterfaceTy::awaitReceives(std::queue<ReceiveFutureTy> &Futures,
+                                      Decoder &D, std::vector<SlabTy> &Slabs) {
+  while (!Futures.empty()) {
+    auto *Request = Futures.front().Request;
+
+    if (!Request) {
+      Futures.pop();
+      continue;
+    }
+
+    ucs_status_t Status;
+
+    if (UCS_PTR_IS_ERR(Request)) {
+      llvm::report_fatal_error(
+          llvm::formatv("failed to send message {0}\n",
+                        ucs_status_string(UCS_PTR_STATUS(Request)))
+              .str());
+    } else if (UCS_PTR_IS_PTR(Request)) {
+      while (!Request->Complete) {
+        ucp_worker_progress(Worker);
+      }
+
+      Request->Complete = 0;
+      Status = ucp_request_check_status(Request);
+      ucp_request_release(Request);
+
+      if (Status != UCS_OK)
+        llvm::report_fatal_error(llvm::formatv("failed to send message {0}\n",
+                                               ucs_status_string(Status))
+                                     .str());
+    }
+
+    auto [Slab, SlabNum] = D.parseSlabHeader(Futures.front().Message);
+    Slabs[SlabNum - 1] = Slab;
+
+    Futures.pop();
+  }
+}
+
+void Base::InterfaceTy::await(ReceiveFutureTy &Future) {
+  if (!Future.Request)
+    return;
+
+  ucs_status_t Status;
+
+  if (UCS_PTR_IS_ERR(Future.Request)) {
+    llvm::report_fatal_error(
+        llvm::formatv("failed to send message {0}\n",
+                      ucs_status_string(UCS_PTR_STATUS(Future.Request)))
+            .str());
+  } else if (UCS_PTR_IS_PTR(Future.Request)) {
+    while (!Future.Request->Complete) {
+      ucp_worker_progress(Worker);
+    }
+
+    Future.Request->Complete = 0;
+    Status = ucp_request_check_status(Future.Request);
+    ucp_request_release(Future.Request);
+
+    if (Status != UCS_OK)
+      llvm::report_fatal_error(llvm::formatv("failed to send message {0}\n",
+                                             ucs_status_string(Status))
+                                   .str());
+  }
+}
+
+HeaderTy Base::InterfaceTy::receive() {
+  auto SlabTag = LastRecvTag.nextRequest();
+  auto Buffer = Worker.receive(SlabTag);
+  HeaderTy Header;
+  Header.ParseFromString(Buffer);
+  return Header;
+}
+
+std::string Base::InterfaceTy::receiveMessage(bool Header) {
+  uint64_t SlabTag;
+  if (!Header)
+    SlabTag = LastRecvTag.nextIntermediateTag();
+  else
+    SlabTag = LastRecvTag.nextRequest();
+  return Worker.receive(SlabTag);
+}
+
+void Base::InterfaceTy::receive(Decoder &D) {
+  auto SlabTag = LastRecvTag.nextRequest();
+
+  auto Buffer = Worker.receive(SlabTag);
+  SlabTag++;
+  auto NumSlabs = D.parseHeader(Buffer.data());
+
+  std::vector<SlabTy> Slabs(NumSlabs - 1);
+  std::queue<ReceiveFutureTy> Futures;
+  for (size_t Idx = 1; Idx < NumSlabs; Idx++, SlabTag++) {
+    Futures.emplace(Worker.asyncReceive(SlabTag, D, Slabs));
+  }
+
+  while (!Futures.empty()) {
+    await(Futures.front());
+    auto [Slab, SlabNum] = D.parseSlabHeader(Futures.front().Message);
+    Slabs[SlabNum - 1] = Slab;
+    Futures.pop();
+  }
+
+  for (auto &Slab : Slabs)
+    D.insert(Slab.Begin, Slab.Cur, Slab.Size);
+}
+
+} // namespace ucx
+} // namespace transport

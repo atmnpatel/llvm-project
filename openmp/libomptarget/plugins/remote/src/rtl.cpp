@@ -16,6 +16,7 @@
 #include "grpc/Client.h"
 #include "omptarget.h"
 #include "omptargetplugin.h"
+#include "ucx/Client.h"
 
 #define TARGET_NAME RPC
 #define DEBUG_PREFIX "Target " GETNAME(TARGET_NAME) " RTL"
@@ -27,8 +28,20 @@ __attribute__((constructor(101))) void initRPC() {
 
   auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
 
-  if (!Protocol || !strcmp(Protocol, "GRPC"))
+  if (!Protocol || !strcmp(Protocol, "GRPC")) {
     Manager = (BaseClientManagerTy *)new transport::grpc::ClientManagerTy();
+  } else if (!strcmp(Protocol, "UCX")) {
+    auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
+    if (!Serialization || !strcmp(Serialization, "Self"))
+      Manager =
+          (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(false);
+    else if (!strcmp(Serialization, "Protobuf"))
+      Manager =
+          (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(true);
+    else
+      llvm::report_fatal_error("Invalid Serialization Option");
+  } else
+    llvm::report_fatal_error("Invalid Protocol");
 }
 
 __attribute__((destructor(101))) void deinitRPC() {
@@ -39,6 +52,10 @@ __attribute__((destructor(101))) void deinitRPC() {
 
   if (!Protocol || !strcmp(Protocol, "GRPC"))
     delete (transport::grpc::ClientManagerTy *)Manager;
+  else if (!strcmp(Protocol, "UCX"))
+    delete (transport::ucx::ClientManagerTy *)Manager;
+  else
+    llvm::report_fatal_error("Invalid Protocol");
 }
 
 // Exposed library API function
@@ -106,7 +123,6 @@ int32_t __tgt_rtl_data_exchange(int32_t SrcDevId, void *SrcPtr,
                                 int32_t DstDevId, void *DstPtr, int64_t Size) {
   return Manager->dataExchange(SrcDevId, SrcPtr, DstDevId, DstPtr, Size);
 }
-
 
 int32_t __tgt_rtl_run_target_region(int32_t DeviceId, void *TgtEntryPtr,
                                     void **TgtArgs, ptrdiff_t *TgtOffsets,

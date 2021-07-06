@@ -17,6 +17,7 @@
 #include <thread>
 
 #include "grpc/Server.h"
+#include "ucx/Server.h"
 
 std::promise<void> ShutdownPromise;
 
@@ -46,6 +47,26 @@ int main() {
     ShutdownFuture.wait();
     Server->Shutdown();
     ServerThread.join();
+
+    return 0;
+  }
+
+  if (!strcmp(Protocol, "UCX")) {
+    transport::ucx::Server *Server;
+
+    auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
+    if (!Serialization || !strcmp(Serialization, "Self"))
+      Server = (transport::ucx::Server *) new transport::ucx::SelfSerializationServer;
+    else if (!strcmp(Serialization, "Protobuf"))
+      Server = (transport::ucx::Server *) new transport::ucx::ProtobufServer;
+    else
+      llvm::report_fatal_error("Invalid Serialization Option");
+
+    auto *ConnectionInfoStr = std::getenv("LIBOMPTARGET_RPC_ADDRESS");
+    auto ConnectionInfo = ConnectionInfoStr ? std::string(ConnectionInfoStr) : ":13337";
+    auto Config = transport::ucx::ConnectionConfigTy(ConnectionInfo);
+
+    Server->listenForConnections(Config);
 
     return 0;
   }
