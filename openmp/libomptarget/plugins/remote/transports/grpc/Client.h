@@ -66,8 +66,6 @@ public:
       freeTargetTable(TableIt.second.get());
   }
 
-  int32_t shutdown(void) override;
-
   int32_t registerLib(__tgt_bin_desc *Desc) override;
   int32_t unregisterLib(__tgt_bin_desc *Desc) override;
 
@@ -122,8 +120,6 @@ public:
           Config.Timeout, Config.MaxSize, Config.BlockSize));
     }
   }
-
-  int32_t shutdown(void) override;
 
   int32_t registerLib(__tgt_bin_desc *Desc) override;
   int32_t unregisterLib(__tgt_bin_desc *Desc) override;

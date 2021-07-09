@@ -54,17 +54,6 @@ auto ClientTy::remoteCall(Fn1 Preprocessor, Fn2 Postprocessor,
   return ErrorValue;
 }
 
-int32_t ClientTy::shutdown(void) {
-  ClientContext Context;
-  Null Request;
-  I32 Reply;
-  CLIENT_DBG("Shutting down server.")
-  auto Status = Stub->Shutdown(&Context, Request, &Reply);
-  if (Status.ok())
-    return Reply.number();
-  return 1;
-}
-
 int32_t ClientTy::registerLib(__tgt_bin_desc *Desc) {
   return remoteCall(
       /* Preprocessor */
@@ -195,7 +184,7 @@ int64_t ClientTy::initRequires(int64_t RequiresFlags) {
       /* Preprocessor */
       [&](auto &RPCStatus, auto &Context) {
         auto *Request = protobuf::Arena::CreateMessage<I64>(Arena.get());
-        auto *Reply = protobuf::Arena::CreateMessage<I32>(Arena.get());
+        auto *Reply = protobuf::Arena::CreateMessage<I64>(Arena.get());
         Request->set_number(RequiresFlags);
         RPCStatus = Stub->InitRequires(&Context, *Request, Reply);
         return Reply;
@@ -209,7 +198,7 @@ int64_t ClientTy::initRequires(int64_t RequiresFlags) {
         }
         return Reply->number();
       },
-      /* Error Value */ -1);
+      /* Error Value */ (int64_t) 0);
 }
 
 __tgt_target_table *ClientTy::loadBinary(int32_t DeviceId,
@@ -301,7 +290,6 @@ void *ClientTy::dataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr) {
 
 int32_t ClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                              int64_t Size) {
-
   return remoteCall(
       /* Preprocessor */
       [&](auto &RPCStatus, auto &Context) {
@@ -570,13 +558,6 @@ int32_t ClientTy::runTargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
       },
       /* Error Value */ -1,
       /* CanTimeOut */ false);
-}
-
-int32_t ClientManagerTy::shutdown(void) {
-  int32_t Ret = 0;
-  for (auto &Client : Clients)
-    Ret &= Client.shutdown();
-  return Ret;
 }
 
 int32_t ClientManagerTy::registerLib(__tgt_bin_desc *Desc) {

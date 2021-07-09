@@ -5,12 +5,11 @@
 
 class BaseClientTy {
 protected:
-  int DebugLevel;
+  int DebugLevel = 0;
 
 public:
-  virtual ~BaseClientTy() {};
-
-  virtual int32_t shutdown(void) = 0;
+  BaseClientTy() : DebugLevel(getDebugLevel()) {}
+  virtual ~BaseClientTy() = default;;
 
   virtual int32_t registerLib(__tgt_bin_desc *Desc) = 0;
   virtual int32_t unregisterLib(__tgt_bin_desc *Desc) = 0;
@@ -53,9 +52,7 @@ protected:
   virtual std::pair<int32_t, int32_t> mapDeviceId(int32_t DeviceId) = 0;
 
 public:
-  virtual ~BaseClientManagerTy() {}
-
-  virtual int32_t shutdown(void) = 0;
+  virtual ~BaseClientManagerTy() = default;
 
   virtual int32_t registerLib(__tgt_bin_desc *Desc) = 0;
   virtual int32_t unregisterLib(__tgt_bin_desc *Desc) = 0;

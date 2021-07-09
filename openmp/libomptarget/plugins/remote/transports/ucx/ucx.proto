@@ -38,7 +38,7 @@ message DeviceOffloadEntry {
   uint64 addr = 2;
   int32 flags = 3;
   int32 reserved = 4;
-  int32 size = 5;
+  uint64 size = 5;
 }
 
 message TargetTable {

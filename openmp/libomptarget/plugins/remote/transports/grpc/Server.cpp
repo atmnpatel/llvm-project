@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <cmath>
-#include <future>
 
 #include "Server.h"
 #include "grpc.grpc.pb.h"
@@ -20,19 +19,8 @@
 
 using grpc::WriteOptions;
 
-extern std::promise<void> ShutdownPromise;
-
 namespace transport {
 namespace grpc {
-
-Status RemoteOffloadImpl::Shutdown(ServerContext *Context, const Null *Request,
-                                   I32 *Reply) {
-  SERVER_DBG("Shutting down the server")
-
-  Reply->set_number(0);
-  ShutdownPromise.set_value();
-  return Status::OK;
-}
 
 Status
 RemoteOffloadImpl::RegisterLib(ServerContext *Context,
@@ -117,7 +105,7 @@ Status RemoteOffloadImpl::InitDevice(ServerContext *Context,
 }
 
 Status RemoteOffloadImpl::InitRequires(ServerContext *Context,
-                                       const I64 *RequiresFlag, I32 *Reply) {
+                                       const I64 *RequiresFlag, I64 *Reply) {
   for (auto &Device : PM->Devices)
     if (Device.RTL->init_requires)
       Device.RTL->init_requires(RequiresFlag->number());

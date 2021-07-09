@@ -47,6 +47,7 @@ target_link_libraries(openmp-offloading-server PRIVATE
         "-L /opt/ucx/lib"
         ${OPENMP_PTHREAD_LIB}
         "-fopenmp"
-        "-g -fno-omit-frame-pointer"
+        "-ggdb -fno-omit-frame-pointer"
+#        "-O3"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
         )

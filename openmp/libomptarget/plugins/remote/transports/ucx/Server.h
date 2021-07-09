@@ -8,8 +8,7 @@
 
 extern PluginManager *PM;
 
-namespace transport {
-namespace ucx {
+namespace transport::ucx {
 
 class Server : public Base {
 protected:
@@ -21,7 +20,7 @@ protected:
       HostToRemoteDeviceImage;
 
   /* Function to map host device id to remote device id */
-  int32_t mapHostRTLDeviceId(int32_t RTLDeviceID);
+  static int32_t mapHostRTLDeviceId(int32_t RTLDeviceID);
 
   /* Forward declaration of Listener */
   class ListenerTy;
@@ -30,13 +29,15 @@ protected:
   WorkerTy ConnectionWorker;
 
   /* Cached Debug Level */
-  int DebugLevel;
+  uint32_t DebugLevel;
 
   /* Unique Target Binary Description */
   std::unique_ptr<__tgt_bin_desc> TBD;
 
   /* Worker Thread */
   std::thread *Thread;
+
+  int32_t Devices;
 
 public:
   Server();
@@ -81,17 +82,18 @@ public:
 
 class ProtobufServer : public Server {
   template <typename T> T deserialize() {
-    auto Message = Interface->receiveMessage(false);
+    auto Message = Interface->receive().second;
     T Request;
     if (!Request.ParseFromString(Message))
       llvm::report_fatal_error("Could not parse message");
     return Request;
   }
 
-  std::string getHeader(MessageTy Type) {
-    HeaderTy Header;
-    Header.set_type(Type);
-    return Header.SerializeAsString();
+  template <typename T> T deserialize(std::string &Message) {
+    T Request;
+    if (!Request.ParseFromString(Message))
+      llvm::report_fatal_error("Could not parse message");
+    return Request;
   }
 
 public:
@@ -99,40 +101,37 @@ public:
 
   void run();
   void getNumberOfDevices();
-  void registerLib();
-  void isValidBinary();
-  void initRequires();
-  void initDevice();
-  void loadBinary();
-  void dataAlloc();
-  void dataSubmit();
-  void dataRetrieve();
-  void runTargetRegion();
-  void runTargetTeamRegion();
-  void dataDelete();
-  void unregisterLib();
+  void registerLib(std::string &Message);
+  void isValidBinary(std::string &Message);
+  void initRequires(std::string &Message);
+  void initDevice(std::string &Message);
+  void loadBinary(std::string &Message);
+  void dataAlloc(std::string &Message);
+  void dataSubmit(std::string &Message);
+  void dataRetrieve(std::string &Message);
+  void runTargetRegion(std::string &Message);
+  void runTargetTeamRegion(std::string &Message);
+  void dataDelete(std::string &Message);
+  void unregisterLib(std::string &Message);
 };
 
-class SelfSerializationServer : public Server {
+class CustomServer : public Server {
 public:
   void listenForConnections(const ConnectionConfigTy &Config) override;
 
-  void deserialize(Decoder &D, __tgt_bin_desc *TBD);
-
   void run();
   void getNumberOfDevices();
-  void registerLib(Decoder &D);
-  void isValidBinary(Decoder &D);
-  void initRequires(Decoder &D);
-  void initDevice(Decoder &D);
-  void loadBinary(Decoder &D);
-  void dataAlloc(Decoder &D);
-  void dataSubmit(Decoder &D);
-  void dataRetrieve(Decoder &D);
-  void runTargetRegion(Decoder &D);
-  void runTargetTeamRegion(Decoder &D);
-  void dataDelete(Decoder &D);
-  void unregisterLib(Decoder &D);
+  void registerLib(std::string &Message);
+  void isValidBinary(std::string &Message);
+  void initRequires(std::string &Message);
+  void initDevice(std::string &Message);
+  void loadBinary(std::string &Message);
+  void dataAlloc(std::string &Message);
+  void dataSubmit(std::string &Message);
+  void dataRetrieve(std::string &Message);
+  void runTargetRegion(std::string &Message);
+  void runTargetTeamRegion(std::string &Message);
+  void dataDelete(std::string &Message);
+  void unregisterLib(std::string &Message);
 };
-} // namespace ucx
-} // namespace transport
+} // namespace transport::ucx

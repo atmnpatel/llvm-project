@@ -30,18 +30,6 @@
     }                                                                          \
   }
 
-#define ERROR(status, ...)                                                     \
-  {                                                                            \
-    fprintf(stderr, "**FATAL** [[%s]] %s (%s)\n", __func__, __VA_ARGS__,       \
-            ucs_status_string(status));                                        \
-  }
-
-#define DFN(...)                                                               \
-  {                                                                            \
-    fprintf(stdout, "Remote RTL --> [[%s]] %s\n", __PRETTY_FUNCTION__,         \
-            __VA_ARGS__);                                                      \
-  }
-
 #include "omptarget.h"
 #include <arpa/inet.h>
 #include <cstring>
@@ -60,13 +48,7 @@
 #include <thread>
 #include <ucx.pb.h>
 
-#define DUMP true
-#define TAG_MASK 0xffffffffffffff
-
-using openmp::libomptarget::ucx::DeviceOffloadEntry;
-using openmp::libomptarget::ucx::TargetBinaryDescription;
-using openmp::libomptarget::ucx::TargetOffloadEntry;
-using openmp::libomptarget::ucx::TargetTable;
+#define TAG_MASK 0x0fffffffffffff
 
 namespace transport {
 namespace ucx {
@@ -243,7 +225,7 @@ std::string getPort(const sockaddr_storage *SocketAddress);
 
 void dump(char *Begin, int32_t Size, const std::string &Title = "");
 void dump(int Offset, char *Begin, char *End);
-void dump(char *Begin, char *End, const std::string &Title = "");
+void dump(const char *Begin, const char *End, const std::string &Title = "");
 
 } // namespace ucx
 } // namespace transport
@@ -259,7 +241,7 @@ template <> struct DenseMapInfo<transport::ucx::MemoryTy> {
   }
 
   static unsigned getHashValue(const transport::ucx::MemoryTy &Base) {
-    return std::hash<void *>()(Base.Addr) ^ std::hash<int32_t>()(Base.Size);
+    return std::hash<void *>()(Base.Addr) ^ std::hash<size_t>()(Base.Size);
   }
 
   static bool isEqual(const transport::ucx::MemoryTy &LHS,

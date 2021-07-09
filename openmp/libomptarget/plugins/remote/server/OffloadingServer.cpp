@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <future>
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
 #include <iostream>
@@ -19,12 +18,10 @@
 #include "grpc/Server.h"
 #include "ucx/Server.h"
 
-std::promise<void> ShutdownPromise;
-
 int main() {
   auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
 
-  if (!Protocol || !strcmp(Protocol, "GRPC")) {
+  if (!Protocol || !strcmp(Protocol, "gRPC")) {
     transport::grpc::ClientManagerConfigTy Config;
 
     transport::grpc::RemoteOffloadImpl Service(Config.MaxSize, Config.BlockSize);
@@ -39,14 +36,7 @@ int main() {
       std::cerr << "Server listening on " << Config.ServerAddresses[0]
                 << std::endl;
 
-    auto WaitForServer = [&]() { Server->Wait(); };
-
-    std::thread ServerThread(WaitForServer);
-
-    auto ShutdownFuture = ShutdownPromise.get_future();
-    ShutdownFuture.wait();
-    Server->Shutdown();
-    ServerThread.join();
+    Server->Wait();
 
     return 0;
   }
@@ -55,8 +45,8 @@ int main() {
     transport::ucx::Server *Server;
 
     auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
-    if (!Serialization || !strcmp(Serialization, "Self"))
-      Server = (transport::ucx::Server *) new transport::ucx::SelfSerializationServer;
+    if (!Serialization || !strcmp(Serialization, "Custom"))
+      Server = (transport::ucx::Server *) new transport::ucx::CustomServer;
     else if (!strcmp(Serialization, "Protobuf"))
       Server = (transport::ucx::Server *) new transport::ucx::ProtobufServer;
     else

@@ -47,27 +47,20 @@ std::string getPort(const sockaddr_storage *SocketAddress) {
   return std::string(Port);
 }
 
-void print_result(std::string Message, bool Sent) {
-  printf("\n\n-----------------------------------------\n\n");
-  printf("%s Message: %s.\nLength: %ld\n", (Sent ? "Sent " : "Recieved "),
-         (Message.size() != 0) ? Message.c_str() : "<none>", Message.size());
-  printf("\n-----------------------------------------\n\n");
-}
-
-void dump(int Offset, char *Begin, char *End) {
-  printf("(dec) %d:  ", Offset);
+void dump(size_t Offset, char *Begin, const char *End) {
+  printf("(dec) %lu:  ", Offset);
   for (char *Itr = Begin; Itr != End; Itr++) {
     printf(" %d", *Itr);
   }
   printf("\n");
 
-  printf("(hex) %d:  ", Offset);
+  printf("(hex) %lu:  ", Offset);
   for (char *Itr = Begin; Itr != End; Itr++) {
     printf(" %x", *Itr);
   }
   printf("\n");
 
-  printf("(asc) %d:  ", Offset);
+  printf("(asc) %lu:  ", Offset);
   for (char *Itr = Begin; Itr != End; Itr++) {
     if (std::isgraph(*Itr)) {
       printf(" %c", *Itr);
@@ -82,13 +75,10 @@ void dump(char *Begin, int32_t Size, const std::string &Title) {
   return dump(Begin, Begin + Size, Title);
 }
 
-void dump(char *Begin, char *End, const std::string &Title) {
-  if (DUMP) {
-    printf("======================= %s =======================\n",
-           Title.c_str());
-    for (size_t offset = 0; offset < End - Begin; offset += 16)
-      dump(offset, Begin + offset, std::min(Begin + offset + 16, End));
-  }
+void dump(const char *Begin, const char *End, const std::string &Title) {
+  printf("======================= %s =======================\n", Title.c_str());
+  for (size_t offset = 0; offset < End - Begin; offset += 16)
+    dump(offset, (char *) Begin + offset, std::min(Begin + offset + 16, End));
 }
 
 } // namespace ucx

@@ -4,20 +4,27 @@
 #include "Utils.h"
 #include "omptarget.h"
 #include "ucp/api/ucp.h"
+#include "ucx.pb.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <memory>
 
-namespace transport {
-namespace ucx {
+namespace transport::ucx {
 
 Server::Server()
-    : Base(), ConnectionWorker(Context), DebugLevel(getDebugLevel()),
-      TBD(new __tgt_bin_desc) {
-  PM->RTLs.BlocklistedRTLs = {
-      "libomptarget.rtl.rpc.so"};
+    : Base(), ConnectionWorker((ucp_context_h *)Context),
+      DebugLevel(getDebugLevel()), TBD(new __tgt_bin_desc) {
+  PM->RTLs.BlocklistedRTLs = {"libomptarget.rtl.rpc.so"};
+
+  std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, &PM->RTLs);
+
+  Devices = 0;
+  PM->RTLsMtx.lock();
+  for (auto &RTL : PM->RTLs.AllRTLs)
+    Devices += RTL.NumberOfDevices;
+  PM->RTLsMtx.unlock();
 }
 
 Server::~Server() {
@@ -45,7 +52,8 @@ Server::ListenerTy::ListenerTy(ucp_worker_h Worker, ServerContextTy *Context,
   /* Create a listener to listen on the given socket address.*/
   if (auto Status = ucp_listener_create(Worker, &Params, Listener))
     llvm::report_fatal_error(
-        llvm::formatv("Failed to listen: {0}", ucs_status_string(Status)).str());
+        llvm::formatv("Failed to listen: {0}", ucs_status_string(Status))
+            .str());
 }
 
 void Server::ListenerTy::query() {
@@ -63,18 +71,17 @@ void Server::ListenerTy::query() {
 
 void ProtobufServer::listenForConnections(const ConnectionConfigTy &Config) {
   ServerContextTy Ctx;
-  ListenerTy Listener(ConnectionWorker, &Ctx, Config);
+  ListenerTy Listener((ucp_worker_h)ConnectionWorker, &Ctx, Config);
 
   Listener.query();
 
-  while (1) {
-    while (Ctx.ConnRequests.size() == 0) {
-      ucp_worker_progress(ConnectionWorker);
+  while (true) {
+    while (Ctx.ConnRequests.empty()) {
+      ucp_worker_progress((ucp_worker_h)ConnectionWorker);
     }
 
     for (auto *ConnRequest : Ctx.ConnRequests) {
-      Interface = std::make_unique<InterfaceTy>(Context, &Allocator,
-                                                         ConnRequest);
+      Interface = std::make_unique<InterfaceTy>(Context, ConnRequest);
       Thread = new std::thread([&]() { run(); });
     }
 
@@ -83,60 +90,60 @@ void ProtobufServer::listenForConnections(const ConnectionConfigTy &Config) {
 }
 
 void ProtobufServer::run() {
-  while (1) {
-    auto Header = Interface->receive();
+  while (true) {
+    auto [Type, Message] = Interface->receive();
 
-    switch (Header.type()) {
+    switch (Type) {
     case GetNumberOfDevices: {
       getNumberOfDevices();
       break;
     }
     case RegisterLib: {
-      registerLib();
+      registerLib(Message);
       break;
     }
     case IsValidBinary: {
-      isValidBinary();
+      isValidBinary(Message);
       break;
     }
     case InitRequires: {
-      initRequires();
+      initRequires(Message);
       break;
     }
     case InitDevice: {
-      initDevice();
+      initDevice(Message);
       break;
     }
     case LoadBinary: {
-      loadBinary();
+      loadBinary(Message);
       break;
     }
     case DataAlloc: {
-      dataAlloc();
+      dataAlloc(Message);
       break;
     }
     case DataDelete: {
-      dataDelete();
+      dataDelete(Message);
       break;
     }
     case DataSubmit: {
-      dataSubmit();
+      dataSubmit(Message);
       break;
     }
     case DataRetrieve: {
-      dataRetrieve();
+      dataRetrieve(Message);
       break;
     }
     case RunTargetRegion: {
-      runTargetRegion();
+      runTargetRegion(Message);
       break;
     }
     case RunTargetTeamRegion: {
-      runTargetTeamRegion();
+      runTargetTeamRegion(Message);
       break;
     }
     case UnregisterLib: {
-      unregisterLib();
+      unregisterLib(Message);
       break;
     }
     default: {
@@ -147,25 +154,18 @@ void ProtobufServer::run() {
 }
 
 void ProtobufServer::getNumberOfDevices() {
-  std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, &PM->RTLs);
+  I32 Response;
+  Response.set_number(Devices);
 
-  int32_t Devices = 0;
-  PM->RTLsMtx.lock();
-  for (auto &RTL : PM->RTLs.AllRTLs)
-    Devices += RTL.NumberOfDevices;
-  PM->RTLsMtx.unlock();
-
-  I32 NumDevices;
-  NumDevices.set_number(Devices);
-
-  std::vector<std::string> Messages = {NumDevices.SerializeAsString()};
-  Interface->send(Messages);
   SERVER_DBG("Found %d devices", Devices)
+  Interface->send(Count, Response.SerializeAsString());
 }
 
-void ProtobufServer::registerLib() {
-  auto Description = deserialize<TargetBinaryDescription>();
+void ProtobufServer::registerLib(std::string &Message) {
+  auto Description = deserialize<TargetBinaryDescription>(Message);
 
+  if (TBD)
+    delete TBD.get();
   TBD = std::make_unique<__tgt_bin_desc>();
   unloadTargetBinaryDescription(&Description, TBD.get(),
                                 HostToRemoteDeviceImage);
@@ -175,15 +175,12 @@ void ProtobufServer::registerLib() {
   I32 Response;
   Response.set_number(0);
 
-  std::vector<std::string> Messages = {Response.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
   SERVER_DBG("Registered library")
 }
 
-void ProtobufServer::isValidBinary() {
-  auto Message = Interface->receiveMessage(false);
-  Pointer DeviceImageHostPtr;
-  DeviceImageHostPtr.ParseFromString(Message);
+void ProtobufServer::isValidBinary(std::string &Message) {
+  auto DeviceImageHostPtr = deserialize<Pointer>(Message);
 
   SERVER_DBG("Checking if binary (%p) is valid",
              (void *)(DeviceImageHostPtr.number()))
@@ -201,33 +198,27 @@ void ProtobufServer::isValidBinary() {
   I32 Response;
   Response.set_number(IsValid);
 
-  std::vector<std::string> Messages = {Response.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
 
   SERVER_DBG("Checked if binary (%p) is valid",
              (void *)(DeviceImageHostPtr.number()))
 }
 
-void ProtobufServer::initRequires() {
+void ProtobufServer::initRequires(std::string &Message) {
   SERVER_DBG("Initializing requires for devices")
-  auto Message = Interface->receiveMessage(false);
-  I64 RequiresFlag;
-  RequiresFlag.ParseFromString(Message);
+  auto RequiresFlag = deserialize<I64>(Message);
 
   for (auto &Device : PM->Devices)
     if (Device.RTL->init_requires)
       Device.RTL->init_requires(RequiresFlag.number());
 
-  std::vector<std::string> Messages = {Message};
-  Interface->send(Messages);
+  Interface->send(Count, RequiresFlag.SerializeAsString());
 
   SERVER_DBG("Initialized requires for devices")
 }
 
-void ProtobufServer::initDevice() {
-  auto Message = Interface->receiveMessage(false);
-  I32 DeviceId;
-  DeviceId.ParseFromString(Message);
+void ProtobufServer::initDevice(std::string &Message) {
+  auto DeviceId = deserialize<I32>(Message);
 
   SERVER_DBG("Initializing device %d", DeviceId.number())
 
@@ -237,8 +228,7 @@ void ProtobufServer::initDevice() {
   I32 Response;
   Response.set_number(Err);
 
-  std::vector<std::string> Messages = {Response.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
 
   SERVER_DBG("Initialized device %d", DeviceId.number())
 }
@@ -253,10 +243,8 @@ int32_t Server::mapHostRTLDeviceId(int32_t RTLDeviceID) {
   return RTLDeviceID;
 }
 
-void ProtobufServer::loadBinary() {
-  auto Message = Interface->receiveMessage(false);
-  Binary Request;
-  Request.ParseFromString(Message);
+void ProtobufServer::loadBinary(std::string &Message) {
+  auto Request = deserialize<Binary>(Message);
 
   __tgt_device_image *Image =
       HostToRemoteDeviceImage[(void *)Request.image_ptr()];
@@ -267,24 +255,21 @@ void ProtobufServer::loadBinary() {
   auto *TT = PM->Devices[Request.device_id()].RTL->load_binary(
       mapHostRTLDeviceId(Request.device_id()), Image);
 
-  TargetTable Table;
+  TargetTable Response;
   if (TT) {
     SERVER_DBG("Loaded binary (%p) to device %d", (void *)Request.image_ptr(),
                Request.device_id())
-    loadTargetTable(TT, Table, Image);
+    loadTargetTable(TT, Response, Image);
   } else
     llvm::report_fatal_error("Could not load binary");
 
-  std::vector<std::string> Messages = {Table.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
 }
 
-void ProtobufServer::dataAlloc() {
-  auto Message = Interface->receiveMessage(false);
-  AllocData Request;
-  Request.ParseFromString(Message);
+void ProtobufServer::dataAlloc(std::string &Message) {
+  auto Request = deserialize<AllocData>(Message);
 
-  SERVER_DBG("Allocating %ld bytes on sevice %d", Request.size(),
+  SERVER_DBG("Allocating %ld bytes on device %d", Request.size(),
              Request.device_id())
 
   uint64_t TgtPtr = (uint64_t)PM->Devices[Request.device_id()].RTL->data_alloc(
@@ -294,16 +279,13 @@ void ProtobufServer::dataAlloc() {
   Pointer Response;
   Response.set_number(TgtPtr);
 
-  std::vector<std::string> Messages = {Response.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
 
   SERVER_DBG("Allocated at " DPxMOD "", DPxPTR((void *)TgtPtr))
 }
 
-void ProtobufServer::dataDelete() {
-  auto Message = Interface->receiveMessage(false);
-  DeleteData Request;
-  Request.ParseFromString(Message);
+void ProtobufServer::dataDelete(std::string &Message) {
+  auto Request = deserialize<DeleteData>(Message);
 
   SERVER_DBG("Deleting data from (%p) on device %d", (void *)Request.tgt_ptr(),
              mapHostRTLDeviceId(Request.device_id()))
@@ -314,17 +296,14 @@ void ProtobufServer::dataDelete() {
   I32 Response;
   Response.set_number(Err);
 
-  std::vector<std::string> Messages = {Response.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
 
   SERVER_DBG("Deleted data from (%p) on device %d", (void *)Request.tgt_ptr(),
              mapHostRTLDeviceId(Request.device_id()))
 }
 
-void ProtobufServer::dataSubmit() {
-  auto Message = Interface->receiveMessage(false);
-  SubmitData Request;
-  Request.ParseFromString(Message);
+void ProtobufServer::dataSubmit(std::string &Message) {
+  auto Request = deserialize<SubmitData>(Message);
 
   SERVER_DBG("Submitting %lu bytes async to (%p) on device %d",
              Request.data().size(), (void *)Request.tgt_ptr(),
@@ -337,18 +316,15 @@ void ProtobufServer::dataSubmit() {
   I32 Response;
   Response.set_number(Err);
 
-  std::vector<std::string> Messages = {Response.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
 
   SERVER_DBG("Submitted %lu bytes async to (%p) on device %d",
              Request.data().size(), (void *)Request.tgt_ptr(),
              Request.device_id())
 }
 
-void ProtobufServer::runTargetRegion() {
-  auto Message = Interface->receiveMessage(false);
-  TargetRegion Request;
-  Request.ParseFromString(Message);
+void ProtobufServer::runTargetRegion(std::string &Message) {
+  auto Request = deserialize<TargetRegion>(Message);
 
   std::vector<uint64_t> TgtArgs(Request.tgt_args_size());
   for (auto I = 0; I < Request.tgt_args_size(); I++)
@@ -368,14 +344,11 @@ void ProtobufServer::runTargetRegion() {
   I32 Response;
   Response.set_number(Ret);
 
-  std::vector<std::string> Messages = {Response.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
 }
 
-void ProtobufServer::dataRetrieve() {
-  auto Message = Interface->receiveMessage(false);
-  RetrieveData Request;
-  Request.ParseFromString(Message);
+void ProtobufServer::dataRetrieve(std::string &Message) {
+  auto Request = deserialize<RetrieveData>(Message);
 
   SERVER_DBG("Retrieve %lu bytes from (%p) on device %d", Request.size(),
              (void *)Request.tgt_ptr(), mapHostRTLDeviceId(Request.device_id()))
@@ -385,21 +358,18 @@ void ProtobufServer::dataRetrieve() {
       mapHostRTLDeviceId(Request.device_id()), (void *)HstPtr.get(),
       (void *)Request.tgt_ptr(), Request.size());
 
-  Data DataReply;
-  DataReply.set_data(HstPtr.get(), Request.size());
-  DataReply.set_ret(Ret);
+  Data Response;
+  Response.set_data(HstPtr.get(), Request.size());
+  Response.set_ret(Ret);
 
-  std::vector<std::string> Messages = {DataReply.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
 
   SERVER_DBG("Retrieved %lu bytes from (%p) on device %d", Request.size(),
              (void *)Request.tgt_ptr(), mapHostRTLDeviceId(Request.device_id()))
 }
 
-void ProtobufServer::runTargetTeamRegion() {
-  auto Message = Interface->receiveMessage(false);
-  TargetTeamRegion Request;
-  Request.ParseFromString(Message);
+void ProtobufServer::runTargetTeamRegion(std::string &Message) {
+  auto Request = deserialize<TargetTeamRegion>(Message);
 
   std::vector<uint64_t> TgtArgs(Request.tgt_args_size());
   for (auto I = 0; I < Request.tgt_args_size(); I++)
@@ -420,15 +390,12 @@ void ProtobufServer::runTargetTeamRegion() {
   I32 Response;
   Response.set_number(Ret);
 
-  std::vector<std::string> Messages = {Response.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
 }
 
-void ProtobufServer::unregisterLib() {
+void ProtobufServer::unregisterLib(std::string &Message) {
   SERVER_DBG("Unregistering library")
-  auto Message = Interface->receiveMessage(false);
-  Pointer Request;
-  Request.ParseFromString(Message);
+  auto Request = deserialize<Pointer>(Message);
 
   // TODO: handle multiple tgt_bin_descs / application if necessary
   PM->RTLs.UnregisterLib(TBD.get());
@@ -436,27 +403,24 @@ void ProtobufServer::unregisterLib() {
   I32 Response;
   Response.set_number(0);
 
-  std::vector<std::string> Messages = {Response.SerializeAsString()};
-  Interface->send(Messages);
+  Interface->send(Count, Response.SerializeAsString());
 
   SERVER_DBG("Unregistered library")
 }
 
-void SelfSerializationServer::listenForConnections(
-    const ConnectionConfigTy &Config) {
+void CustomServer::listenForConnections(const ConnectionConfigTy &Config) {
   ServerContextTy Ctx;
-  ListenerTy Listener(ConnectionWorker, &Ctx, Config);
+  ListenerTy Listener((ucp_worker_h)ConnectionWorker, &Ctx, Config);
 
   Listener.query(); // For Info only
 
-  while (1) {
+  while (true) {
     while (Ctx.ConnRequests.size() == 0) {
-      ucp_worker_progress(ConnectionWorker);
+      ucp_worker_progress((ucp_worker_h)ConnectionWorker);
     }
 
     for (auto *ConnRequest : Ctx.ConnRequests) {
-      Interface = std::make_unique<InterfaceTy>(Context, &Allocator,
-                                                         ConnRequest);
+      Interface = std::make_unique<InterfaceTy>(Context, ConnRequest);
       Thread = new std::thread([&]() { run(); });
     }
 
@@ -464,63 +428,79 @@ void SelfSerializationServer::listenForConnections(
   }
 }
 
-void SelfSerializationServer::run() {
-  while (1) {
-    Decoder D(&Allocator);
+std::vector<std::string> MessageKindToString = {
+    "RegisterLib",
+    "UnregisterLib",
+    "IsValidBinary",
+    "GetNumberOfDevices",
+    "InitDevice",
+    "InitRequires",
+    "LoadBinary",
+    "DataAlloc",
+    "DataDelete",
+    "DataSubmit",
+    "DataRetrieve",
+    "RunTargetRegion",
+    "RunTargetTeamRegion",
+    "Count"
+};
 
-    Interface->receive(D);
+void CustomServer::run() {
+  while (true) {
+    auto [Type, Message] = Interface->receive();
+    printf("Type: %s\n", MessageKindToString[Type].c_str());
 
-    switch (D.Type) {
+    switch (Type) {
     case GetNumberOfDevices: {
       getNumberOfDevices();
       break;
     }
     case RegisterLib: {
-      registerLib(D);
+      registerLib(Message);
       break;
     }
     case IsValidBinary: {
-      isValidBinary(D);
+      isValidBinary(Message);
       break;
     }
     case InitRequires: {
-      initRequires(D);
+      initRequires(Message);
       break;
     }
     case InitDevice: {
-      initDevice(D);
+      initDevice(Message);
       break;
     }
     case LoadBinary: {
-      loadBinary(D);
+      loadBinary(Message);
       break;
     }
     case DataAlloc: {
-      dataAlloc(D);
+      dataAlloc(Message);
       break;
     }
     case DataSubmit: {
-      dataSubmit(D);
+      dataSubmit(Message);
       break;
     }
     case DataRetrieve: {
-      dataRetrieve(D);
+      dataRetrieve(Message);
       break;
     }
     case RunTargetRegion: {
-      runTargetRegion(D);
+      runTargetRegion(Message);
       break;
     }
     case RunTargetTeamRegion: {
-      runTargetTeamRegion(D);
+      runTargetTeamRegion(Message);
       break;
     }
     case DataDelete: {
-      dataDelete(D);
+      dataDelete(Message);
       break;
     }
     case UnregisterLib: {
-      unregisterLib(D);
+      unregisterLib(Message);
       break;
     }
     default: {
@@ -530,36 +510,27 @@ void SelfSerializationServer::run() {
   }
 }
 
-void SelfSerializationServer::getNumberOfDevices() {
-  std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, &PM->RTLs);
+void CustomServer::getNumberOfDevices() {
+  custom::I32 Response(Devices);
 
-  int32_t Devices = 0;
-  PM->RTLsMtx.lock();
-  for (auto &RTL : PM->RTLs.AllRTLs)
-    Devices += RTL.NumberOfDevices;
-  PM->RTLsMtx.unlock();
-
-  EncoderTy E(&Allocator, MessageTy::GetNumberOfDevices, Devices);
-  Interface->send(E.MessageSlabs);
+  SERVER_DBG("Found %d devices", Devices)
+  Interface->send(GetNumberOfDevices, Response.getBuffer());
 }
 
-void SelfSerializationServer::registerLib(Decoder &D) {
-  deserialize(D, TBD.get());
-  D.initializeIndirect();
+void CustomServer::registerLib(std::string &Message) {
+  custom::TargetBinaryDescription Request(Message, TBD.get(),
+                                          HostToRemoteDeviceImage);
 
   PM->RTLs.RegisterLib(TBD.get());
 
-  // TODO: handle multiple tgt_bin_descs / application if necessary
-  EncoderTy E(&Allocator, MessageTy::RegisterLib);
-  Interface->send(E.MessageSlabs);
+  Interface->send(RegisterLib, std::string("0"));
 }
 
-void SelfSerializationServer::isValidBinary(Decoder &D) {
+void CustomServer::isValidBinary(std::string &Message) {
+  custom::Pointer Request(Message);
 
-  uintptr_t DeviceImageHostPtr;
-  D.deserializeValue(DeviceImageHostPtr);
   __tgt_device_image *DeviceImage =
-      HostToRemoteDeviceImage[(void *)DeviceImageHostPtr];
+      HostToRemoteDeviceImage[(void *)Request.Value];
 
   int32_t IsValid = false;
   for (auto &RTL : PM->RTLs.AllRTLs)
@@ -568,205 +539,118 @@ void SelfSerializationServer::isValidBinary(Decoder &D) {
       break;
     }
 
-  EncoderTy E(&Allocator, MessageTy::IsValidBinary, IsValid);
+  custom::I32 Response(IsValid);
 
-  Interface->send(E.MessageSlabs);
+  Interface->send(IsValidBinary, Response.getBuffer());
 }
 
-void SelfSerializationServer::deserialize(Decoder &D, __tgt_bin_desc *TBD) {
-  D.deserializeList(TBD->HostEntriesBegin, TBD->HostEntriesEnd);
-  D.deserializeValue(TBD->NumDeviceImages);
-  auto Ptrs = D.deserializeList(TBD->DeviceImages, TBD->NumDeviceImages, true);
-  auto I = 0;
-  for (const auto &Ptr : Ptrs) {
-    HostToRemoteDeviceImage.insert({Ptr, TBD->DeviceImages + I});
-    I++;
-  }
-}
-void SelfSerializationServer::initRequires(Decoder &D) {
-
-  int64_t Flag;
-  D.deserializeValue(Flag);
+void CustomServer::initRequires(std::string &Message) {
+  custom::I64 Request(Message);
 
   for (auto &Device : PM->Devices)
     if (Device.RTL->init_requires)
-      Device.RTL->init_requires(Flag);
+      Device.RTL->init_requires(Request.Value);
 
-  EncoderTy E(&Allocator, MessageTy::InitRequires, Flag);
-
-  Interface->send(E.MessageSlabs);
+  Interface->send(InitRequires, Request.getBuffer());
 }
 
-void SelfSerializationServer::initDevice(Decoder &D) {
+void CustomServer::initDevice(std::string &Message) {
+  custom::I32 Request(Message);
 
-  int32_t DeviceNum;
-  D.deserializeValue(DeviceNum);
+  custom::I32 Response(PM->Devices[Request.Value].RTL->init_device(
+      mapHostRTLDeviceId(Request.Value)));
 
-  int32_t Response =
-      PM->Devices[DeviceNum].RTL->init_device(mapHostRTLDeviceId(DeviceNum));
-
-  EncoderTy E(&Allocator, MessageTy::InitDevice, Response);
-  Interface->send(E.MessageSlabs);
+  Interface->send(InitDevice, Response.getBuffer());
 }
 
-void SelfSerializationServer::loadBinary(Decoder &D) {
+void CustomServer::loadBinary(std::string &Message) {
+  custom::Binary Request(Message);
 
-  int32_t DeviceNum;
-  D.deserializeValue(DeviceNum);
+  __tgt_device_image *Image = HostToRemoteDeviceImage[(void *)Request.Image];
 
-  uintptr_t DeviceImageHostPtr;
-  D.deserializeValue(DeviceImageHostPtr);
-
-  __tgt_device_image *Image =
-      HostToRemoteDeviceImage[(void *)DeviceImageHostPtr];
-
-  auto *TT = PM->Devices[DeviceNum].RTL->load_binary(
-      mapHostRTLDeviceId(DeviceNum), Image);
+  auto *TT = PM->Devices[Request.DeviceId].RTL->load_binary(
+      mapHostRTLDeviceId(Request.DeviceId), Image);
 
   if (TT) {
-    EncoderTy E(&Allocator, MessageTy::LoadBinary, false);
-    serializeTT(E, TT);
-    E.initializeIndirectMemorySlabs();
-    E.finalize();
-    Interface->send(E.MessageSlabs);
+    custom::TargetTable Response(TT);
+    Interface->send(LoadBinary, Response.getBuffer());
   } else {
     llvm::report_fatal_error("Could not load binary");
   }
 }
 
-void SelfSerializationServer::dataAlloc(Decoder &D) {
-  int32_t DeviceNum;
-  int64_t Size;
-  uintptr_t HstPtr;
+void CustomServer::dataAlloc(std::string &Message) {
+  custom::DataAlloc Request(Message);
 
-  D.deserializeValue(DeviceNum);
-  D.deserializeValue(Size);
-  D.deserializeValue(HstPtr);
+  auto TgtPtr = (uint64_t)PM->Devices[Request.DeviceId].RTL->data_alloc(
+      mapHostRTLDeviceId(Request.DeviceId), Request.AllocSize,
+      (void *)Request.HstPtr, TARGET_ALLOC_DEFAULT);
 
-  uint64_t TgtPtr = (uint64_t)PM->Devices[DeviceNum].RTL->data_alloc(
-      mapHostRTLDeviceId(DeviceNum), Size, (void *)HstPtr,
-      TARGET_ALLOC_DEFAULT);
-
-  EncoderTy E(&Allocator, MessageTy::DataAlloc, TgtPtr);
-  Interface->send(E.MessageSlabs);
+  custom::Pointer Response((uintptr_t)TgtPtr);
+  Interface->send(DataAlloc, Response.getBuffer());
 }
 
-void SelfSerializationServer::dataSubmit(Decoder &D) {
-  auto *DSA = (DataSubmitTy *)Allocator.Allocate(sizeof(DataSubmitTy), 4);
-  deserialize<DataSubmitTy *>(D, DSA);
-  D.initializeIndirect();
+void CustomServer::dataSubmit(std::string &Message) {
+  custom::DataSubmit Request(Message);
 
-  int32_t Response = PM->Devices[DSA->DeviceId].RTL->data_submit(
-      mapHostRTLDeviceId(DSA->DeviceId), DSA->TgtPtr, DSA->HstPtr, DSA->Size);
+  custom::I32 Response(PM->Devices[Request.DeviceId].RTL->data_submit(
+      mapHostRTLDeviceId(Request.DeviceId), Request.TgtPtr, Request.HstPtr,
+      Request.DataSize));
 
-  EncoderTy E(&Allocator, MessageTy::DataSubmit, Response);
-
-  Interface->send(E.MessageSlabs);
+  Interface->send(DataSubmit, Response.getBuffer());
 }
 
-void SelfSerializationServer::dataRetrieve(Decoder &D) {
-  int32_t DeviceId;
-  uintptr_t TgtPtr;
-  int64_t Size;
-  uintptr_t Info;
+void CustomServer::dataRetrieve(std::string &Message) {
+  custom::DataRetrieve Request(Message);
 
-  D.deserializeValue(DeviceId);
-  D.deserializeValue(TgtPtr);
-  D.deserializeValue(Size);
-  D.deserializeValue(Info);
+  auto HstPtr = std::make_unique<char[]>(Request.DataSize);
 
-  // auto HstPtr = std::make_unique<char>(Size);
-  auto *HstPtr = Allocator.Allocate(Size, 4);
+  int32_t Value = PM->Devices[Request.DeviceId].RTL->data_retrieve(
+      mapHostRTLDeviceId(Request.DeviceId), (void *)HstPtr.get(),
+      (void *)Request.TgtPtr, Request.DataSize);
 
-  int32_t Response = PM->Devices[DeviceId].RTL->data_retrieve(
-      mapHostRTLDeviceId(DeviceId), (void *)HstPtr, (void *)TgtPtr, Size);
-  // mapHostRTLDeviceId(DeviceId), (void *)HstPtr.get(), (void *)TgtPtr, Size);
+  custom::Data Response(Value, HstPtr.get(), Request.DataSize);
 
-  EncoderTy E(&Allocator, MessageTy::DataRetrieve, false);
-  E.serializeValue(Response);
-  // E.serializeMemory(HstPtr.get(), Size);
-  E.serializeMemory(HstPtr, Size);
-  E.initializeIndirectMemorySlabs();
-  E.finalize();
-
-  Interface->send(E.MessageSlabs);
+  Interface->send(DataRetrieve, Response.getBuffer());
 }
 
-void SelfSerializationServer::runTargetRegion(Decoder &D) {
-  int32_t DeviceId, ArgNum;
-  uintptr_t TgtEntryPtr;
+void CustomServer::runTargetRegion(std::string &Message) {
+  custom::TargetRegion Request(Message);
 
-  D.deserializeValue(DeviceId);
-  D.deserializeValue(TgtEntryPtr);
-  D.deserializeValue(ArgNum);
+  custom::I32 Response(PM->Devices[Request.DeviceId].RTL->run_region(
+      mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
+      (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets,
+      Request.ArgNum));
 
-  std::vector<uint64_t> TgtArgs(ArgNum);
-  for (auto I = 0; I < ArgNum; I++)
-    D.deserializeValue((TgtArgs[I]));
-
-  std::vector<ptrdiff_t> TgtOffsets(ArgNum);
-  for (auto I = 0; I < ArgNum; I++)
-    D.deserializeValue((TgtOffsets[I]));
-
-  int32_t Response = PM->Devices[DeviceId].RTL->run_region(
-      mapHostRTLDeviceId(DeviceId), (void *)TgtEntryPtr,
-      (void **)TgtArgs.data(), (ptrdiff_t *)TgtOffsets.data(), ArgNum);
-
-  EncoderTy E(&Allocator, MessageTy::RunTargetTeamRegion, Response);
-  Interface->send(E.MessageSlabs);
+  Interface->send(RunTargetRegion, Response.getBuffer());
 }
 
-void SelfSerializationServer::runTargetTeamRegion(Decoder &D) {
-  int32_t DeviceId, ArgNum, TeamNum, ThreadLimit;
-  uint64_t LoopTripCount;
-  uintptr_t TgtEntryPtr;
+void CustomServer::runTargetTeamRegion(std::string &Message) {
+  custom::TargetTeamRegion Request(Message);
 
-  D.deserializeValue(DeviceId);
-  D.deserializeValue(TgtEntryPtr);
-  D.deserializeValue(ArgNum);
+  custom::I32 Response(PM->Devices[Request.DeviceId].RTL->run_team_region(
+      mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
+      (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets, Request.ArgNum,
+      Request.TeamNum, Request.ThreadLimit, Request.LoopTripCount));
 
-  std::vector<uint64_t> TgtArgs(ArgNum);
-  for (auto I = 0; I < ArgNum; I++)
-    D.deserializeValue((TgtArgs[I]));
-
-  std::vector<ptrdiff_t> TgtOffsets(ArgNum);
-
-  D.deserializeValue(TeamNum);
-  D.deserializeValue(ThreadLimit);
-  D.deserializeValue(LoopTripCount);
-
-  int32_t Response = PM->Devices[DeviceId].RTL->run_team_region(
-      mapHostRTLDeviceId(DeviceId), (void *)TgtEntryPtr,
-      (void **)TgtArgs.data(), (ptrdiff_t *)TgtOffsets.data(), ArgNum, TeamNum,
-      ThreadLimit, LoopTripCount);
-
-  EncoderTy E(&Allocator, MessageTy::RunTargetTeamRegion, Response);
-  Interface->send(E.MessageSlabs);
+  Interface->send(RunTargetTeamRegion, Response.getBuffer());
 }
 
-void SelfSerializationServer::dataDelete(Decoder &D) {
-  int32_t DeviceId;
-  uintptr_t TgtPtr;
+void CustomServer::dataDelete(std::string &Message) {
+  custom::DataDelete Request(Message);
 
-  D.deserializeValue(DeviceId);
-  D.deserializeValue(TgtPtr);
+  custom::I32 Response(PM->Devices[Request.DeviceId].RTL->data_delete(
+      mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtPtr));
 
-  int32_t Response = PM->Devices[DeviceId].RTL->data_delete(
-      mapHostRTLDeviceId(DeviceId), (void *)TgtPtr);
-
-  EncoderTy E(&Allocator, MessageTy::DataDelete, Response);
-  Interface->send(E.MessageSlabs);
+  Interface->send(DataDelete, Response.getBuffer());
 }
 
-void SelfSerializationServer::unregisterLib(Decoder &D) {
-  uintptr_t Desc;
-  D.deserializeValue(Desc);
+void CustomServer::unregisterLib(std::string &Message) {
+  custom::Pointer Request(Message);
 
   PM->RTLs.UnregisterLib(TBD.get());
 
   // TODO: handle multiple tgt_bin_descs / application if necessary
-  EncoderTy E(&Allocator, MessageTy::UnregisterLib);
-  Interface->send(E.MessageSlabs);
+  Interface->send(UnregisterLib, std::string("0"));
 }
-} // namespace ucx
-} // namespace transport
+} // namespace transport::ucx

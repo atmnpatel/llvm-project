@@ -59,9 +59,6 @@ public:
     Arena = std::make_unique<protobuf::Arena>();
   }
 
-  Status Shutdown(ServerContext *Context, const Null *Request,
-                  I32 *Reply) override;
-
   Status RegisterLib(ServerContext *Context,
                      const TargetBinaryDescription *Description,
                      I32 *Reply) override;
@@ -77,7 +74,7 @@ public:
   Status InitDevice(ServerContext *Context, const I32 *DeviceNum,
                     I32 *Reply) override;
   Status InitRequires(ServerContext *Context, const I64 *RequiresFlag,
-                      I32 *Reply) override;
+                      I64 *Reply) override;
 
   Status LoadBinary(ServerContext *Context, const Binary *Binary,
                     TargetTable *Reply) override;

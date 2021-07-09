@@ -1,42 +1,10 @@
 #include "Serialization.h"
 #include "Utils.h"
+#include "omptarget.h"
 #include <cstddef>
+#include <cstdint>
 
-namespace transport {
-namespace ucx {
-
-CoderTy::CoderTy(AllocatorTy *Allocator)
-    : Allocator(Allocator), Type(MessageTy::Count) {}
-CoderTy::CoderTy(AllocatorTy *Allocator, MessageTy T)
-    : Allocator(Allocator), Type(T) {}
-
-void CoderTy::dumpSlabs() const {
-  if (DUMP) {
-    size_t I = 0;
-    for (auto &Slab : MessageSlabs) {
-      printf("Slab: %p, %p, %ld\n", Slab.Begin, Slab.Cur, Slab.Size);
-      dump(Slab.Begin, Slab.Begin + Slab.Size, "Message " + std::to_string(I));
-      I++;
-    }
-  }
-}
-
-SlabTy &CoderTy::allocateSlab(SlabListTy &Slabs, size_t Size) {
-  auto *Begin = (char *)Allocator->Allocate(Size, 4);
-  size_t Index = Slabs.size() + 1;
-  Slabs.emplace_back(Begin, Begin);
-
-  auto &SlabItr = Slabs.back();
-
-  copyValueToBuffer(SlabItr.Cur, Index);
-  SlabItr.Size += sizeof(size_t);
-
-  // Skip slab size fields
-  SlabItr.Cur += sizeof(size_t);
-  SlabItr.Size += sizeof(size_t);
-
-  return Slabs.back();
-}
+namespace transport::ucx {
 
 void loadTargetBinaryDescription(const __tgt_bin_desc *Desc,
                                  TargetBinaryDescription &Request) {
@@ -69,14 +37,14 @@ void loadTargetBinaryDescription(const __tgt_bin_desc *Desc,
 void unloadTargetBinaryDescription(
     const TargetBinaryDescription *Request, __tgt_bin_desc *Desc,
     std::unordered_map<const void *, __tgt_device_image *>
-    &HostToRemoteDeviceImage) {
+        &HostToRemoteDeviceImage) {
   Desc->NumDeviceImages = Request->images_size();
   Desc->DeviceImages = new __tgt_device_image[Desc->NumDeviceImages];
   Desc->HostEntriesBegin = new __tgt_offload_entry[Request->entries_size()];
 
   // Copy Global Offload Entries
   __tgt_offload_entry *CurEntry = Desc->HostEntriesBegin;
-  for (auto Entry : Request->entries()) {
+  for (const auto &Entry : Request->entries()) {
     copyOffloadEntry(Entry, CurEntry);
     CurEntry++;
   }
@@ -84,13 +52,13 @@ void unloadTargetBinaryDescription(
 
   // Copy Device Images and Device Offload Entries
   __tgt_device_image *CurImage = Desc->DeviceImages;
-  for (auto Image : Request->images()) {
+  for (const auto &Image : Request->images()) {
     HostToRemoteDeviceImage[(void *)Image.img_ptr()] = CurImage;
 
     CurImage->EntriesBegin = new __tgt_offload_entry[Image.entries_size()];
     CurEntry = CurImage->EntriesBegin;
 
-    for (auto Entry : Image.entries()) {
+    for (const auto &Entry : Image.entries()) {
       copyOffloadEntry(Entry, CurEntry);
       CurEntry++;
     }
@@ -153,10 +121,10 @@ void unloadTargetTable(
   Table->EntriesBegin = new __tgt_offload_entry[TableResponse.entries_size()];
 
   auto *CurEntry = Table->EntriesBegin;
-  for (int i = 0; i < TableResponse.entries_size(); i++) {
-    copyOffloadEntry(TableResponse.entries()[i], CurEntry);
+  for (int I = 0; I < TableResponse.entries_size(); I++) {
+    copyOffloadEntry(TableResponse.entries()[I], CurEntry);
     HostToRemoteTargetTableMap[CurEntry->addr] =
-        (void *)TableResponse.entry_ptrs()[i];
+        (void *)TableResponse.entry_ptrs()[I];
     CurEntry++;
   }
   Table->EntriesEnd = CurEntry;
@@ -194,184 +162,396 @@ void copyOffloadEntry(const __tgt_offload_entry *Entry,
   EntryResponse->set_flags(Entry->flags);
   EntryResponse->set_data(Entry->addr, Entry->size);
 }
-Decoder::Decoder(AllocatorTy *Allocator) : CoderTy(Allocator)  {}
 
-void Decoder::initializeIndirect() {
-  sort(
-      Indirect.begin(), Indirect.end(),
-      [](const MemoryTy &A, const MemoryTy &B) { return A.Index > B.Index; });
+namespace custom {
+std::pair<char *, size_t> Message::getBuffer() {
+  return {Buffer, MessageSize};
+}
 
-  for (auto &Entry : Indirect) {
-    size_t SizeLeft = Entry.Size;
-    auto *CurBuffer = (char *)Entry.Address;
-    while (SizeLeft > 0) {
-      auto &Slab = MessageSlabs.front();
-      size_t BufferSpaceLeft =
-          Slab.Size - ((char *)Slab.Cur - (char *)Slab.Begin);
+Message::Message(bool Empty)
+    : MessageSize(Empty ? 1 : 0), Buffer(Empty ? (char *)calloc(1, MessageSize) : nullptr),
+      CurBuffer(Empty ? Buffer : nullptr) {}
+Message::Message(size_t Size)
+    : MessageSize(Size), Buffer((char *)malloc(Size)), CurBuffer(Buffer) {}
 
-      if (BufferSpaceLeft == 0) {
-        MessageSlabs.pop_front();
-      }
+Message::Message(char *MessageBuffer)
+    : Buffer(MessageBuffer), CurBuffer(Buffer) {}
 
-      size_t SizeToCopy = std::min(SizeLeft, BufferSpaceLeft);
-      copyMemoryFromBuffer(Slab.Cur, CurBuffer, SizeToCopy);
-      CurBuffer += SizeToCopy;
-      SizeLeft -= SizeToCopy;
-    }
+void Message::serialize(uintptr_t Value) {
+  std::memcpy((void *)((CurBuffer += sizeof(Value)) - sizeof(Value)), &Value,
+              sizeof(Value));
+}
+
+void Message::serialize(void *BufferStart, void *BufferEnd) {
+  size_t BufferSize = ((uintptr_t)BufferEnd - (uintptr_t)BufferStart);
+  std::memcpy((void *)((CurBuffer += sizeof(BufferSize)) - sizeof(BufferSize)),
+              &BufferSize, sizeof(BufferSize));
+  std::memcpy((void *)((CurBuffer += BufferSize) - BufferSize), BufferStart,
+              BufferSize);
+}
+
+void Message::serialize(char *String) {
+  serialize(String, String + strlen(String));
+}
+
+void Message::serialize(__tgt_offload_entry *Entry) {
+  serialize(Entry->name);
+  serialize((uintptr_t)Entry->addr);
+  serialize(Entry->size);
+  if (Entry->size)
+    serialize(Entry->addr, (void *)((uintptr_t)Entry->addr + Entry->size));
+  serialize(Entry->flags);
+  serialize(Entry->reserved);
+}
+
+void Message::serialize(__tgt_device_image *Image) {
+  auto NumEntries = 0;
+  for (auto *CurEntry = Image->EntriesBegin; CurEntry != Image->EntriesEnd;
+       CurEntry++, NumEntries++)
+    ;
+  serialize(NumEntries);
+
+  for (auto *CurEntry = Image->EntriesBegin; CurEntry != Image->EntriesEnd;
+       CurEntry++)
+    serialize(CurEntry);
+
+  serialize(Image->ImageStart, Image->ImageEnd);
+}
+
+void *Message::deserializePointer() {
+  void *Pointer = nullptr;
+  std::memcpy(&Pointer, (CurBuffer += sizeof(Pointer)) - sizeof(Pointer),
+              sizeof(Pointer));
+  return Pointer;
+}
+
+void Message::deserialize(void *&BufferStart, void *&BufferEnd) {
+  size_t StrSize = 0;
+  deserialize(StrSize);
+  BufferStart = new char[StrSize];
+  std::memcpy(BufferStart, (CurBuffer += StrSize) - StrSize, StrSize);
+  BufferEnd = (void *)((uintptr_t)BufferStart + StrSize);
+}
+
+void Message::deserialize(char *&String) {
+  void *BufferStart = (void *)String;
+  void *BufferEnd = nullptr;
+  deserialize(BufferStart, BufferEnd);
+  String = (char *)BufferStart;
+}
+
+void Message::deserialize(__tgt_offload_entry *&Entry) {
+  deserialize(Entry->name);
+  Entry->addr = deserializePointer();
+  deserialize(Entry->size);
+  if (Entry->size) {
+    void *End = nullptr;
+    deserialize(Entry->addr, End);
+  }
+  deserialize(Entry->flags);
+  deserialize(Entry->reserved);
+}
+
+void Message::deserialize(__tgt_device_image *&Image) {
+  int32_t NumEntries = 0;
+  deserialize(NumEntries);
+
+  Image->EntriesBegin = new __tgt_offload_entry[NumEntries];
+  Image->EntriesEnd = &Image->EntriesBegin[NumEntries];
+  for (auto *CurEntry = Image->EntriesBegin; CurEntry != Image->EntriesEnd;
+       CurEntry++) {
+    deserialize(CurEntry);
+  }
+
+  deserialize(Image->ImageStart, Image->ImageEnd);
+}
+
+I32::I32(int32_t Value) : Message(sizeof(Value)) { serialize(Value); }
+
+I32::I32(std::string MessageBuffer) : Message(MessageBuffer.data()) {
+  std::memcpy(&Value, Buffer, sizeof(int32_t));
+}
+
+I64::I64(int64_t Value) : Message(sizeof(Value)) { serialize(Value); }
+
+I64::I64(std::string MessageBuffer) : Message(MessageBuffer.data()) {
+  std::memcpy(&Value, Buffer, sizeof(int64_t));
+}
+
+Pointer::Pointer(uintptr_t Value) : Message(sizeof(Value)) { serialize(Value); }
+
+Pointer::Pointer(std::string MessageBuffer) : Message(MessageBuffer.data()) {
+  std::memcpy(&Value, Buffer, sizeof(uintptr_t));
+}
+
+TargetBinaryDescription::TargetBinaryDescription(__tgt_bin_desc *Description) {
+  int32_t NumEntries = 0;
+  MessageSize += sizeof(NumEntries);
+
+  // Compute size of __tgt_offload_entries
+  for (auto *CurEntry = Description->HostEntriesBegin;
+       CurEntry != Description->HostEntriesEnd; CurEntry++) {
+    MessageSize += sizeof(size_t) + strlen(CurEntry->name) + sizeof(CurEntry->addr) +
+            sizeof(CurEntry->size) + (CurEntry->size ? CurEntry->size : 0) +
+            sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
+  }
+
+  // Compute size of __tgt_device_images
+  auto *CurImage = Description->DeviceImages;
+  MessageSize += sizeof(Description->NumDeviceImages);
+  for (auto I = 0; I < Description->NumDeviceImages; I++, CurImage++) {
+    MessageSize += sizeof(uintptr_t);
+
+    MessageSize += (uintptr_t)CurImage->ImageEnd - (uintptr_t)CurImage->ImageStart;
+    MessageSize += sizeof(size_t);
+
+    for (auto *CurEntry = CurImage->EntriesBegin;
+         CurEntry != CurImage->EntriesEnd; CurEntry++)
+      MessageSize += sizeof(size_t) + strlen(CurEntry->name) + sizeof(CurEntry->addr) +
+              sizeof(CurEntry->size) + (CurEntry->size ? CurEntry->size : 0) +
+              sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
+    MessageSize += sizeof(NumEntries);
+  }
+
+  Buffer = new char[MessageSize];
+  CurBuffer = Buffer;
+
+  // Find number of entries
+  NumEntries = 0;
+  for (auto *CurEntry = Description->HostEntriesBegin;
+       CurEntry != Description->HostEntriesEnd; CurEntry++)
+    NumEntries++;
+
+  // Serialize host entries
+  serialize(NumEntries);
+  for (auto *CurEntry = Description->HostEntriesBegin;
+       CurEntry != Description->HostEntriesEnd; CurEntry++)
+    serialize(CurEntry);
+
+  // Serialize device images
+  serialize(Description->NumDeviceImages);
+  CurImage = Description->DeviceImages;
+  for (auto I = 0; I < Description->NumDeviceImages; I++, CurImage++) {
+    serialize((uintptr_t)CurImage);
+    serialize(CurImage);
   }
 }
 
-std::pair<char *, char *> Decoder::deserializeMemory() {
-  auto &Slab = MessageSlabs.front();
-  size_t Size;
-  TokenTy TT;
+TargetBinaryDescription::TargetBinaryDescription(
+    std::string &MessageBuffer, __tgt_bin_desc *Description,
+    std::unordered_map<const void *, __tgt_device_image *>
+        &HostToRemoteDeviceImage)
+    : Message(MessageBuffer.data()) {
+  int32_t NumEntries;
+  deserialize(NumEntries);
 
-  std::memcpy(&TT, (Slab.Cur += sizeof(TT)) - sizeof(TT), sizeof(TT));
+  Description->HostEntriesBegin = new __tgt_offload_entry[NumEntries];
+  Description->HostEntriesEnd = &Description->HostEntriesBegin[NumEntries];
 
-  if (TT == TT_VALUE) {
-    std::memcpy(&Size, (Slab.Cur += sizeof(Size)) - sizeof(Size),
-                sizeof(Size));
+  for (auto *CurEntry = Description->HostEntriesBegin;
+       CurEntry != Description->HostEntriesEnd; CurEntry++)
+    deserialize(CurEntry);
 
-    auto *Buffer = (char *)Allocator->Allocate(Size, 4);
-    std::memcpy(Buffer, (Slab.Cur += Size) - Size, Size);
-    return {Buffer, Buffer + Size};
-  }
+  deserialize(Description->NumDeviceImages);
 
-  if (TT == TT_INDIRECTION) {
-    int32_t Index;
-    int32_t Size;
+  Description->DeviceImages =
+      new __tgt_device_image[Description->NumDeviceImages];
 
-    copyValueFromBuffer(Slab.Cur, Index);
-    copyValueFromBuffer(Slab.Cur, Size);
-
-    auto *Buffer = (char *)Allocator->Allocate(Size, 4);
-
-    //printf("Found Indirect: %p, %d, %d\n", Buffer, Index, Size);
-    Indirect.push_back({Buffer, Index, Size});
-    return {Buffer, Buffer + Size};
-  }
-
-  return {nullptr, nullptr};
-}
-
-size_t Decoder::parseHeader(char *Buffer) {
-  size_t NumSlabs;
-
-  copyValueFromBuffer(Buffer, Type);
-  copyValueFromBuffer(Buffer, NumSlabs);
-
-  return NumSlabs;
-}
-
-std::pair<SlabTy, uint32_t> Decoder::parseSlabHeader(char *&Buffer) {
-  size_t SlabNum, Size;
-  char *CurBuffer = Buffer;
-
-  copyValueFromBuffer(CurBuffer, SlabNum);
-  copyValueFromBuffer(CurBuffer, Size);
-
-  return {{Buffer, CurBuffer, Size}, SlabNum};
-}
-
-void Decoder::insert(char *Buffer, char *CurBuffer, size_t Size) {
-  MessageSlabs.emplace_back(Buffer, CurBuffer, Size);
-}
-void EncoderTy::serializeData(const void *Ptr, size_t Size) {
-  TokenTy TT = TT_VALUE;
-  char *Buffer = allocate(MessageSlabs, sizeof(TT) + sizeof(Size) + Size);
-  copyValueToBuffer(Buffer, TT);
-  copyValueToBuffer(Buffer, Size);
-  copyMemoryToBuffer(Buffer, Ptr, Size);
-}
-
-void EncoderTy::serializeMemory(void *Ptr, size_t Size) {
-  if (Size < MaxMemoryCopySize) {
-    serializeData(Ptr, Size);
-    return;
-  }
-  auto Index = IndirectMemoryMap.size();
-  //printf("Indirect: %u, %ld\n", Index, Size);
-  Index = IndirectMemoryMap.insert({MemoryTy{Ptr, Size}, Index}).first->second;
-  serializeIndirect(Index, Size);
-}
-
-void EncoderTy::finalize() {
-  for (auto &Slab : MessageSlabs) {
-    serializeSlabHeader(Slab);
-    Size += Slab.Size;
-  }
-  allocateHeader(Type);
-}
-
-void EncoderTy::serializeSlabHeader(SlabTy &SlabItr) {
-  if (SlabItr.Size == 0)
-    return;
-  std::memcpy(SlabItr.Begin + sizeof(size_t), &SlabItr.Size, sizeof(SlabItr.Size));
-}
-
-void EncoderTy::serializeHeader(MessageTy Type, size_t NumSlabs) {
-  auto *Begin = (char *)Allocator->Allocate(HeaderSize, 4);
-  MessageSlabs.emplace_front(Begin, Begin);
-
-  auto &Slab = MessageSlabs.front();
-  copyValueToBuffer(Slab.Cur, Type);
-  copyValueToBuffer(Slab.Cur, NumSlabs);
-
-  Slab.Size = HeaderSize;
-}
-
-void EncoderTy::allocateHeader(MessageTy Type) {
-  auto NumSlabs = MessageSlabs.size() + 1;
-  serializeHeader(Type, NumSlabs);
-}
-
-char *EncoderTy::allocate(SlabListTy &Slabs, int32_t Size) {
-  SlabTy &Slab = Slabs.back();
-  if ((Slab.Cur - Slab.Begin) + Size > SlabSize) {
-    Slab = allocateSlab(Slabs);
-  }
-  Slab.Cur += Size;
-  Slab.Size += Size;
-  return Slab.Cur - Size;
-}
-
-void EncoderTy::serializeIndirect(int32_t Index, int32_t Size) {
-  TokenTy TT = TT_INDIRECTION;
-  auto *Buffer =
-      allocate(MessageSlabs, sizeof(Index) + sizeof(TokenTy) + sizeof(Size));
-  copyValueToBuffer(Buffer, TT);
-  copyValueToBuffer(Buffer, Index);
-  copyValueToBuffer(Buffer, Size);
-}
-
-void EncoderTy::initializeIndirectMemorySlabs() {
-  for (auto &It : IndirectMemoryMap) {
-    auto SizeLeft = It.first.Size;
-    auto *CurBuffer = (char *)It.first.Addr;
-    while (SizeLeft > 0) {
-      auto &Slab = MessageSlabs.back();
-      size_t BufferSpaceLeft =
-          SlabSize - ((char *)Slab.Cur - (char *)Slab.Begin);
-
-      if (BufferSpaceLeft == 0) {
-        auto *Buffer = (char *)Allocator->Allocate(SlabSize, 4);
-        MessageSlabs.emplace_back(Buffer, Buffer, 0);
-        size_t Index = MessageSlabs.size();
-        auto &Slab = MessageSlabs.back();
-        std::memcpy(Slab.Cur, &Index, sizeof(Index));
-        Slab.Cur += SlabHeaderSize;
-        Slab.Size += SlabHeaderSize;
-        continue;
-      }
-
-      auto SizeToCopy = std::min(SizeLeft, BufferSpaceLeft);
-      copyMemoryToBuffer(Slab.Cur, CurBuffer, SizeToCopy);
-      Slab.Size += SizeToCopy;
-      CurBuffer += SizeToCopy;
-      SizeLeft -= SizeToCopy;
-    }
+  std::vector<void *> ImagePtrs;
+  auto *Image = Description->DeviceImages;
+  for (auto I = 0; I < Description->NumDeviceImages; I++, Image++) {
+    void *Ptr = deserializePointer();
+    ImagePtrs.push_back(Ptr);
+    deserialize(Image);
+    HostToRemoteDeviceImage[Ptr] = Image;
   }
 }
 
-} // namespace ucx
-} // namespace transport
+Binary::Binary(int32_t DeviceId, __tgt_device_image *Image)
+    : Message(sizeof(DeviceId) + sizeof(Image)) {
+  serialize(DeviceId);
+  serialize((uintptr_t)Image);
+}
+
+Binary::Binary(std::string MessageBuffer) : Message(MessageBuffer.data()) {
+  deserialize(DeviceId);
+  Image = deserializePointer();
+}
+
+TargetTable::TargetTable(__tgt_target_table *Table) {
+  int32_t NumEntries = 0;
+  MessageSize += sizeof(NumEntries);
+
+  // Compute size of __tgt_offload_entries
+  for (auto *CurEntry = Table->EntriesBegin; CurEntry != Table->EntriesEnd;
+       CurEntry++, NumEntries++) {
+    MessageSize += sizeof(size_t) + strlen(CurEntry->name) + sizeof(CurEntry->addr) +
+            sizeof(CurEntry->size) + (CurEntry->size ? CurEntry->size : 0) +
+            sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
+  }
+
+  Buffer = new char[MessageSize];
+  CurBuffer = Buffer;
+
+  serialize(NumEntries);
+  for (auto *CurEntry = Table->EntriesBegin; CurEntry != Table->EntriesEnd;
+       CurEntry++)
+    serialize(CurEntry);
+}
+
+TargetTable::TargetTable(std::string MessageBuffer)
+    : Message(MessageBuffer.data()) {
+  Table = new __tgt_target_table;
+
+  int NumEntries;
+  deserialize(NumEntries);
+
+  Table->EntriesBegin = new __tgt_offload_entry[NumEntries];
+  Table->EntriesEnd = Table->EntriesBegin + NumEntries;
+
+  for (auto *CurEntry = Table->EntriesBegin; CurEntry != Table->EntriesEnd;
+       CurEntry++)
+    deserialize(CurEntry);
+}
+
+DataAlloc::DataAlloc(int32_t DeviceId, int64_t AllocSize, void *HstPtr) {
+  MessageSize = sizeof(DeviceId) + sizeof(AllocSize) + sizeof(HstPtr);
+  Buffer = new char[MessageSize];
+  CurBuffer = Buffer;
+  serialize(DeviceId);
+  serialize(AllocSize);
+  serialize((uintptr_t)HstPtr);
+}
+
+DataAlloc::DataAlloc(std::string MessageBuffer)
+    : Message(MessageBuffer.data()) {
+  deserialize(DeviceId);
+  deserialize(AllocSize);
+  HstPtr = deserializePointer();
+}
+
+DataDelete::DataDelete(int32_t DeviceId, void *TgtPtr)
+    : Message(sizeof(DeviceId) + sizeof(TgtPtr)) {
+  serialize(DeviceId);
+  serialize((uintptr_t)TgtPtr);
+}
+
+DataDelete::DataDelete(std::string MessageBuffer)
+    : Message(MessageBuffer.data()) {
+  deserialize(DeviceId);
+  TgtPtr = deserializePointer();
+}
+
+DataSubmit::DataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
+                       int64_t DataSize)
+    : Message(sizeof(DeviceId) + sizeof(uintptr_t) + sizeof(DataSize) + DataSize) {
+  serialize(DeviceId);
+  serialize((uintptr_t)TgtPtr);
+  serialize((void *)HstPtr, (void *)((uintptr_t)HstPtr + DataSize));
+}
+
+DataSubmit::DataSubmit(std::string MessageBuffer)
+    : Message(MessageBuffer.data()) {
+  deserialize(DeviceId);
+  TgtPtr = deserializePointer();
+  HstPtr = nullptr;
+  void *EndPtr = nullptr;
+  deserialize(HstPtr, EndPtr);
+  DataSize = (uintptr_t)EndPtr - (uintptr_t)HstPtr;
+}
+
+DataRetrieve::DataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
+                           int64_t DataSize)
+    : Message(sizeof(DeviceId) + sizeof(HstPtr) + sizeof(TgtPtr) +
+              sizeof(DataSize)) {
+  serialize(DeviceId);
+  serialize((uintptr_t)HstPtr);
+  serialize((uintptr_t)TgtPtr);
+  serialize(DataSize);
+}
+
+DataRetrieve::DataRetrieve(std::string MessageBuffer)
+    : Message(MessageBuffer.data()) {
+  deserialize(DeviceId);
+  HstPtr = deserializePointer();
+  TgtPtr = deserializePointer();
+  deserialize(DataSize);
+}
+
+Data::Data(int32_t Value, char *Buffer, size_t DataSize)
+    : Message(sizeof(DataSize) + DataSize + sizeof(Value)) {
+  serialize(Value);
+  serialize(Buffer, Buffer + DataSize);
+}
+
+Data::Data(std::string MessageBuffer) : Message(MessageBuffer.data()) {
+  deserialize(Value);
+  DataBuffer = nullptr;
+  void *BufferEnd = nullptr;
+  deserialize(DataBuffer, BufferEnd);
+  DataSize = (uintptr_t)BufferEnd - (uintptr_t)DataBuffer;
+}
+
+TargetRegion::TargetRegion(int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs,
+                           ptrdiff_t *TgtOffsets, int32_t ArgNum)
+    : Message(sizeof(DeviceId) + sizeof(TgtEntryPtr) +
+              sizeof(*TgtArgs) * ArgNum + sizeof(ptrdiff_t) * ArgNum) {
+  serialize(DeviceId);
+  serialize((uintptr_t)TgtEntryPtr);
+  serialize(ArgNum);
+  for (auto I = 0; I < ArgNum; I++)
+    serialize((uintptr_t)TgtArgs[I]);
+  for (auto I = 0; I < ArgNum; I++)
+    serialize(TgtOffsets[I]);
+}
+
+TargetRegion::TargetRegion(std::string MessageBuffer)
+    : Message(MessageBuffer.data()) {
+  deserialize(DeviceId);
+  TgtEntryPtr = deserializePointer();
+  deserialize(ArgNum);
+  TgtArgs = new void *[ArgNum];
+  TgtOffsets = new ptrdiff_t[ArgNum];
+  for (auto I = 0; I < ArgNum; I++)
+    TgtArgs[I] = deserializePointer();
+  for (auto I = 0; I < ArgNum; I++)
+    deserialize(TgtOffsets[I]);
+}
+
+TargetTeamRegion::TargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
+                                   void **TgtArgs, ptrdiff_t *TgtOffsets,
+                                   int32_t ArgNum, int32_t TeamNum,
+                                   int32_t ThreadLimit, uint64_t LoopTripCount)
+    : Message(sizeof(DeviceId) + sizeof(TgtEntryPtr) +
+              sizeof(*TgtArgs) * ArgNum + sizeof(ptrdiff_t) * ArgNum +
+              sizeof(TeamNum) + sizeof(ThreadLimit) + sizeof(LoopTripCount)) {
+  serialize(DeviceId);
+  serialize((uintptr_t)TgtEntryPtr);
+  serialize(ArgNum);
+  for (auto I = 0; I < ArgNum; I++)
+    serialize((uintptr_t)TgtArgs[I]);
+  for (auto I = 0; I < ArgNum; I++)
+    serialize(TgtOffsets[I]);
+  serialize(TeamNum);
+  serialize(ThreadLimit);
+  serialize(LoopTripCount);
+}
+
+TargetTeamRegion::TargetTeamRegion(std::string MessageBuffer)
+    : Message(MessageBuffer.data()) {
+  deserialize(DeviceId);
+  TgtEntryPtr = deserializePointer();
+  deserialize(ArgNum);
+  TgtArgs = new void *[ArgNum];
+  TgtOffsets = new ptrdiff_t[ArgNum];
+  for (auto I = 0; I < ArgNum; I++)
+    TgtArgs[I] = deserializePointer();
+  for (auto I = 0; I < ArgNum; I++)
+    deserialize(TgtOffsets[I]);
+  deserialize(TeamNum);
+  deserialize(ThreadLimit);
+  deserialize(LoopTripCount);
+}
+} // namespace custom
+
+} // namespace transport::ucx

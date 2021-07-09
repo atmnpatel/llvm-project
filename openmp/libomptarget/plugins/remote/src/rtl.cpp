@@ -18,8 +18,9 @@
 #include "omptargetplugin.h"
 #include "ucx/Client.h"
 
-#define TARGET_NAME RPC
+#ifndef DEBUG_PREFIX
 #define DEBUG_PREFIX "Target " GETNAME(TARGET_NAME) " RTL"
+#endif
 
 BaseClientManagerTy *Manager;
 
@@ -28,29 +29,28 @@ __attribute__((constructor(101))) void initRPC() {
 
   auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
 
-  if (!Protocol || !strcmp(Protocol, "GRPC")) {
+  if (!Protocol || !strcmp(Protocol, "gRPC")) {
     Manager = (BaseClientManagerTy *)new transport::grpc::ClientManagerTy();
   } else if (!strcmp(Protocol, "UCX")) {
     auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
-    if (!Serialization || !strcmp(Serialization, "Self"))
+    if (!Serialization || !strcmp(Serialization, "Custom"))
       Manager =
           (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(false);
     else if (!strcmp(Serialization, "Protobuf"))
       Manager =
           (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(true);
     else
-      llvm::report_fatal_error("Invalid Serialization Option");
+      llvm::report_fatal_error("Invalid Serialization");
   } else
     llvm::report_fatal_error("Invalid Protocol");
 }
 
 __attribute__((destructor(101))) void deinitRPC() {
-  Manager->shutdown(); // TODO: Error handle shutting down
   DP("Deinit RPC library!\n");
 
   auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
 
-  if (!Protocol || !strcmp(Protocol, "GRPC"))
+  if (!Protocol || !strcmp(Protocol, "gRPC"))
     delete (transport::grpc::ClientManagerTy *)Manager;
   else if (!strcmp(Protocol, "UCX"))
     delete (transport::ucx::ClientManagerTy *)Manager;

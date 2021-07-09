@@ -9,15 +9,13 @@
 #include <queue>
 #include <vector>
 
-#ifndef TARGET_NAME
-#define TARGET_NAME UCX
-#endif
+#ifndef DEBUG_PREFIX
 #define DEBUG_PREFIX "TARGET " GETNAME(TARGET_NAME) " RTL"
+#endif
 
 using namespace openmp::libomptarget::ucx;
 
-namespace transport {
-namespace ucx {
+namespace transport::ucx {
 
 struct ServerContextTy {
   std::vector<ucp_conn_request_h> ConnRequests;
@@ -38,17 +36,10 @@ class WorkerTy {
   bool Initialized = false;
   ucp_worker_h Worker;
 
-  /// Callback to execute when message has been sent
-  static void sendCallback(void *, ucs_status_t, void *Data) {
-    RequestStatus *Context = (RequestStatus *)Data;
-
-    Context->Complete = 1;
-  }
-
   /// Callback to execute when message has been received
   static void receiveCallback(void *, ucs_status_t, const ucp_tag_recv_info_t *,
                               void *UserData) {
-    RequestStatus *Ctx = (RequestStatus *)UserData;
+    auto *Ctx = (RequestStatus *)UserData;
 
     Ctx->Complete = 1;
   }
@@ -56,7 +47,7 @@ class WorkerTy {
   /// Callback to execute when message has been received
   static void receiveCallback(void *Request, ucs_status_t,
                               ucp_tag_recv_info_t *) {
-    RequestStatus *Ctx = (RequestStatus *)Request;
+    auto *Ctx = (RequestStatus *)Request;
 
     Ctx->Complete = 1;
   }
@@ -73,32 +64,36 @@ public:
 
   ~WorkerTy();
 
-  SendFutureTy asyncSend(ucp_ep_h EP, const uint64_t Tag, const char *Message,
-                         const size_t Size);
-  ReceiveFutureTy asyncReceive(const uint64_t Tag, Decoder &D,
-                               std::vector<SlabTy> &Slabs);
-
-  std::string receive(const uint64_t Tag);
+  std::pair<MessageKind, std::string> receive(const uint64_t Tag);
 
   operator ucp_worker_h() const { return Worker; }
 };
 
-class Endpoint {
+class EndpointTy {
   ucp_ep_h EP;
   ucp_worker_h DataWorker;
+
+  /// Callback to execute when message has been sent
+  static void sendCallback(void *, ucs_status_t, void *Data) {
+    auto *Context = (RequestStatus *)Data;
+
+    Context->Complete = 1;
+  }
 
   static void errorCallback(void *Arg, ucp_ep_h EP, ucs_status_t Status) {
     DP("error handling callback was invoked with status %d (%s)\n", Status,
        ucs_status_string(Status));
-    bool *Connected = (bool *) Arg;
+    bool *Connected = (bool *)Arg;
     *Connected = false;
   }
 
 public:
-  Endpoint(ucp_worker_h Worker, ucp_conn_request_h ConnRequest);
-  Endpoint(ucp_worker_h Worker, const ConnectionConfigTy &Config);
+  EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest);
+  EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config);
 
-  ~Endpoint();
+  ~EndpointTy();
+
+  SendFutureTy asyncSend(uint64_t Tag, const char *Message, size_t Size);
 
   /* Helper Functions */
   operator ucp_ep_h() { return EP; }
@@ -109,65 +104,29 @@ struct Base {
   ///
   ContextTy Context;
 
-  AllocatorTy Allocator;
-
   Base() = default;
   virtual ~Base() = default;
 
-  struct TagTy {
-    uint64_t Tag = 0;
-    uint64_t IntermediateTag = 0;
-
-    TagTy() = default;
-    TagTy(const TagTy &T);
-
-    uint64_t nextRequest();
-    uint64_t nextIntermediateTag();
-
-    operator uint64_t();
-  };
-
   struct InterfaceTy {
     WorkerTy Worker;
-    Endpoint EP;
+    EndpointTy EP;
 
-    AllocatorTy *Allocator;
+    uint64_t LastSendTag = 0, LastRecvTag = 0;
 
-    TagTy LastSendTag, LastRecvTag;
+    std::queue<SendFutureTy> Queue;
 
-    InterfaceTy(ContextTy &Context, AllocatorTy *Allocator,
-                         const ConnectionConfigTy &Config);
-    InterfaceTy(ContextTy &Context, AllocatorTy *Allocator,
-                         ucp_conn_request_h ConnRequest);
+    InterfaceTy(ContextTy &Context, const ConnectionConfigTy &Config);
+    InterfaceTy(ContextTy &Context, ucp_conn_request_h ConnRequest);
 
-    std::vector<SlabTy> asyncReceive(Decoder &D,
-                                     std::queue<ReceiveFutureTy> &Futures);
+    void send(MessageKind Type, std::string Message);
+    void send(MessageKind Type, std::pair<char *, size_t> Message);
 
-    template <typename... ArgsTy>
-    void sendMessage(const MessageTy &Type, ArgsTy const &...Args) {
-      EncoderTy E(Allocator, Type, Args...);
-      send(E.MessageSlabs);
-    }
+    void await(SendFutureTy &Future) const;
+    void await(ReceiveFutureTy &Future) const;
 
-    void send(const SlabListTy &Messages);
-    void send(const std::vector<std::string> &Messages);
+    void synchronize();
 
-    std::queue<SendFutureTy> asyncSend(const SlabListTy &Messages);
-    std::queue<SendFutureTy>
-    asyncSend(const std::vector<std::string> &Messages);
-
-    void await(SendFutureTy &Future);
-    void await(ReceiveFutureTy &Future);
-
-    void awaitReceives(std::queue<ReceiveFutureTy> &Futures, Decoder &D,
-                       std::vector<SlabTy> &Slabs);
-
-    HeaderTy receive();
-
-    std::string receiveMessage(bool Header = true);
-
-    void receive(Decoder &D);
+    std::pair<MessageKind, std::string> receive();
   };
 };
-} // namespace ucx
-} // namespace transport
+} // namespace transport::ucx
