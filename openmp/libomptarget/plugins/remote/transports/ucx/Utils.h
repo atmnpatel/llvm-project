@@ -50,99 +50,10 @@
 
 #define TAG_MASK 0x0fffffffffffff
 
-namespace transport {
-namespace ucx {
-
-struct MemoryTy {
-  void *Addr;
-  size_t Size;
-};
-
-static const size_t SlabSize = 1 << 20;
-using AllocatorTyy =
-    llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator, SlabSize, SlabSize, 128>;
-
-struct AllocatorTy {
-  AllocatorTyy Allocator;
-  std::mutex AllocatorMtx;
-  void *Allocate(size_t Size, size_t Alignment) {
-    std::lock_guard Guard(AllocatorMtx);
-    return Allocator.Allocate(Size, Alignment);
-  }
-};
-
-struct RPCConfig {
-  std::vector<std::string> ServerAddresses;
-  uint64_t MaxSize;
-  uint64_t BlockSize;
-  RPCConfig() {
-    ServerAddresses = {"0.0.0.0:50051"};
-    MaxSize = 1 << 30;
-    BlockSize = 1 << 20;
-
-    // TODO: Error handle for incorrect inputs
-    if (const char *Env = std::getenv("LIBOMPTARGET_RPC_ADDRESS")) {
-      ServerAddresses.clear();
-      std::string AddressString = Env;
-      const std::string Delimiter = ",";
-
-      size_t Pos = 0;
-      std::string Token;
-      while ((Pos = AddressString.find(Delimiter)) != std::string::npos) {
-        Token = AddressString.substr(0, Pos);
-        ServerAddresses.push_back(Token);
-        AddressString.erase(0, Pos + Delimiter.length());
-      }
-      ServerAddresses.push_back(AddressString);
-    }
-    if (const char *Env = std::getenv("LIBOMPTARGET_RPC_ALLOCATOR_MAX"))
-      MaxSize = std::stoi(Env);
-    if (const char *Env = std::getenv("LIBOMPTARGET_RPC_BLOCK_SIZE"))
-      BlockSize = std::stoi(Env);
-  }
-};
-
-void parseEnvironment(RPCConfig &Config);
+namespace transport::ucx {
 
 const uint16_t PortStringLength = 8;
 const uint16_t IPStringLength = 50;
-
-struct DataSubmitTy {
-  int32_t DeviceId;
-  void *HstPtr;
-  void *TgtPtr;
-  int64_t Size;
-};
-
-struct RunTargetTeamRegionTy {
-  int32_t DeviceId;
-  void *TgtEntryPtr;
-  void **TgtArgs;
-  ptrdiff_t *TgtOffsets;
-  int32_t ArgNum;
-  int32_t TeamNum;
-  int32_t ThreadLimit;
-  uint64_t LoopTripCount;
-};
-
-struct RunTargetRegionTy {
-  int32_t DeviceId;
-  void *TgtEntryPtr;
-  void **TgtArgs;
-  ptrdiff_t *TgtOffsets;
-  int32_t ArgNum;
-};
-
-struct SlabTy {
-  char *Begin;
-  char *Cur;
-  size_t Size = 0;
-  SlabTy() {}
-  SlabTy(char *Begin, char *Cur, size_t Size = 0)
-      : Begin(Begin), Cur(Cur), Size(Size) {}
-};
-
-using SlabListTy = std::deque<SlabTy>;
 
 struct RequestStatus {
   int Complete;
@@ -200,7 +111,7 @@ struct ManagerConfigTy {
                   ? AddressString.find(Delimiter)
                   : AddressString.length();
         Token = AddressString.substr(0, Pos);
-        ConnectionConfigs.push_back(Token);
+        ConnectionConfigs.emplace_back(Token);
         AddressString.erase(0, Pos + Delimiter.length());
       } while ((Pos = AddressString.find(Delimiter)) != std::string::npos);
     } else
@@ -228,25 +139,3 @@ void dump(int Offset, char *Begin, char *End);
 void dump(const char *Begin, const char *End, const std::string &Title = "");
 
 } // namespace ucx
-} // namespace transport
-
-namespace llvm {
-template <> struct DenseMapInfo<transport::ucx::MemoryTy> {
-  static transport::ucx::MemoryTy getEmptyKey() {
-    return {nullptr, static_cast<size_t>(~0)};
-  }
-
-  static transport::ucx::MemoryTy getTombstoneKey() {
-    return {nullptr, static_cast<size_t>(~1)};
-  }
-
-  static unsigned getHashValue(const transport::ucx::MemoryTy &Base) {
-    return std::hash<void *>()(Base.Addr) ^ std::hash<size_t>()(Base.Size);
-  }
-
-  static bool isEqual(const transport::ucx::MemoryTy &LHS,
-                      const transport::ucx::MemoryTy &RHS) {
-    return LHS.Addr == RHS.Addr && LHS.Size == RHS.Size;
-  }
-};
-} // namespace llvm
