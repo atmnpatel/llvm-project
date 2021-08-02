@@ -27,11 +27,11 @@ BaseClientManagerTy *Manager;
 __attribute__((constructor(101))) void initRPC() {
   DP("Init RPC library!\n");
 
-  auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
+  auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
 
-  if (!Protocol || !strcmp(Protocol, "gRPC")) {
+  if (!Transport || !strcmp(Transport, "gRPC")) {
     Manager = (BaseClientManagerTy *)new transport::grpc::ClientManagerTy();
-  } else if (!strcmp(Protocol, "UCX")) {
+  } else if (!strcmp(Transport, "UCX")) {
     auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
     if (!Serialization || !strcmp(Serialization, "Custom"))
       Manager =
@@ -42,20 +42,20 @@ __attribute__((constructor(101))) void initRPC() {
     else
       llvm::report_fatal_error("Invalid Serialization");
   } else
-    llvm::report_fatal_error("Invalid Protocol");
+    llvm::report_fatal_error("Invalid Transport");
 }
 
 __attribute__((destructor(101))) void deinitRPC() {
   DP("Deinit RPC library!\n");
 
-  auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
+  auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
 
-  if (!Protocol || !strcmp(Protocol, "gRPC"))
+  if (!Transport || !strcmp(Transport, "gRPC"))
     delete (transport::grpc::ClientManagerTy *)Manager;
-  else if (!strcmp(Protocol, "UCX"))
+  else if (!strcmp(Transport, "UCX"))
     delete (transport::ucx::ClientManagerTy *)Manager;
   else
-    llvm::report_fatal_error("Invalid Protocol");
+    llvm::report_fatal_error("Invalid Transport");
 }
 
 // Exposed library API function

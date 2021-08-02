@@ -19,9 +19,9 @@
 #include "ucx/Server.h"
 
 int main() {
-  auto *Protocol = std::getenv("LIBOMPTARGET_RPC_PROTOCOL");
+  auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
 
-  if (!Protocol || !strcmp(Protocol, "gRPC")) {
+  if (!Transport || !strcmp(Transport, "gRPC")) {
     transport::grpc::ClientManagerConfigTy Config;
 
     transport::grpc::RemoteOffloadImpl Service(Config.MaxSize, Config.BlockSize);
@@ -41,7 +41,7 @@ int main() {
     return 0;
   }
 
-  if (!strcmp(Protocol, "UCX")) {
+  if (!strcmp(Transport, "UCX")) {
     transport::ucx::Server *Server;
 
     auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
