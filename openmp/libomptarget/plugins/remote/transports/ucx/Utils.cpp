@@ -1,7 +1,13 @@
 #include "Utils.h"
 
-namespace transport {
-namespace ucx {
+namespace transport::ucx {
+
+std::vector<std::string> MessageKindToString = {
+    "RegisterLib",         "UnregisterLib", "IsValidBinary",
+    "GetNumberOfDevices",  "InitDevice",    "InitRequires",
+    "LoadBinary",          "DataAlloc",     "DataDelete",
+    "DataSubmit",          "DataRetrieve",  "RunTargetRegion",
+    "RunTargetTeamRegion", "Count"};
 
 std::string getIP(const sockaddr_storage *SocketAddress) {
   char IP[IPStringLength];
@@ -78,8 +84,7 @@ void dump(char *Begin, int32_t Size, const std::string &Title) {
 void dump(const char *Begin, const char *End, const std::string &Title) {
   printf("======================= %s =======================\n", Title.c_str());
   for (size_t offset = 0; offset < End - Begin; offset += 16)
-    dump(offset, (char *) Begin + offset, std::min(Begin + offset + 16, End));
+    dump(offset, (char *)Begin + offset, std::min(Begin + offset + 16, End));
 }
 
-} // namespace ucx
-} // namespace transport
+} // namespace transport::ucx

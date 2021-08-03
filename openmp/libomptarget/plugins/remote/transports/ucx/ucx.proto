@@ -52,7 +52,7 @@ message Binary {
 }
 
 message AllocData {
-  uint64 size = 1;
+  int64 size = 1;
   uint64 hst_ptr = 2;
   int32 device_id = 3;
 }
@@ -85,7 +85,7 @@ message TargetDeviceImagePtr {
 
 message RetrieveData {
   uint64 tgt_ptr = 1;
-  uint64 size = 2;
+  int64 size = 2;
   int32 device_id = 3;
 }
 

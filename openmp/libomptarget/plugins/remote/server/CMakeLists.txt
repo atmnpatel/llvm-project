@@ -15,7 +15,7 @@ include_directories(${LIBOMPTARGET_INCLUDE_DIR})
 include_directories(${GRPC_INCLUDE_DIR})
 include_directories(${RPC_INCLUDE_DIR})
 include_directories(${TRANSPORTS_DIR})
-include_directories(/opt/ucx/include)
+include_directories(/home/apatel/dev/ucx/install/include)
 
 set(LLVM_LINK_COMPONENTS
         Support
@@ -47,7 +47,7 @@ target_link_libraries(openmp-offloading-server PRIVATE
         "-L /opt/ucx/lib"
         ${OPENMP_PTHREAD_LIB}
         "-fopenmp"
-        "-ggdb -fno-omit-frame-pointer"
-#        "-O3"
+#        "-ggdb -fno-omit-frame-pointer"
+        "-O3"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
         )

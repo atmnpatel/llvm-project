@@ -62,9 +62,13 @@ public:
   WorkerTy() = default;
   WorkerTy(ucp_context_h *Context);
 
+  WorkerTy(const WorkerTy &OldWorker);
+
   ~WorkerTy();
 
-  std::pair<MessageKind, std::string> receive(const uint64_t Tag);
+  std::pair<MessageKind, std::string> receive(uint64_t Tag);
+
+  std::mutex ProgressMtx;
 
   operator ucp_worker_h() const { return Worker; }
 };
@@ -107,22 +111,22 @@ struct Base {
   struct InterfaceTy {
     WorkerTy Worker;
     EndpointTy EP;
+    ConnectionConfigTy Config;
 
-    uint64_t LastSendTag = 0, LastRecvTag = 0;
-
-    std::queue<SendFutureTy> Queue;
+    std::atomic<uint64_t> LastSendTag = 0, LastRecvTag = 0;
 
     InterfaceTy(ContextTy &Context, const ConnectionConfigTy &Config);
     InterfaceTy(ContextTy &Context, ucp_conn_request_h ConnRequest);
     ~InterfaceTy();
 
-    void send(MessageKind Type, std::string Message);
-    void send(MessageKind Type, std::pair<char *, size_t> Message);
+    InterfaceTy(const InterfaceTy &Interface);
 
-    void await(SendFutureTy &Future) const;
-    void await(ReceiveFutureTy &Future) const;
+    void send(MessageKind Type, std::string Message, bool IsServer = false);
+    void send(MessageKind Type, std::pair<char *, size_t> Message,
+              bool IsServer = false);
 
-    void synchronize();
+    void await(SendFutureTy Future);
+    void await(ReceiveFutureTy Future);
 
     std::pair<MessageKind, std::string> receive();
   };

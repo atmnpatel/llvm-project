@@ -20,7 +20,7 @@ include_directories(${LIBOMPTARGET_INCLUDE_DIR})
 include_directories(${GRPC_INCLUDE_DIR})
 include_directories(${RPC_INCLUDE_DIR})
 include_directories(${TRANSPORTS_DIR})
-include_directories(/opt/ucx/include)
+include_directories(/home/apatel/dev/ucx/install/include)
 
 set(LLVM_LINK_COMPONENTS
         Support
@@ -29,6 +29,7 @@ set(LLVM_LINK_COMPONENTS
 add_llvm_library(omptarget.rtl.rpc SHARED
         ${LIBOMPTARGET_SRC_FILES}
         ${GRPC_SRC_FILES}
+        BaseClient.cpp
         ${TRANSPORTS_DIR}/grpc/Utils.cpp
         ${TRANSPORTS_DIR}/grpc/Client.cpp
         ${TRANSPORTS_DIR}/ucx/Base.cpp
@@ -55,8 +56,8 @@ target_link_libraries(omptarget.rtl.rpc PRIVATE
         "-L /opt/ucx/lib"
         ${OPENMP_PTHREAD_LIB}
         "-fopenmp"
-        "-ggdb -fno-omit-frame-pointer"
-#        "-O3"
+#        "-ggdb -fno-omit-frame-pointer"
+        "-O3"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
         )
 

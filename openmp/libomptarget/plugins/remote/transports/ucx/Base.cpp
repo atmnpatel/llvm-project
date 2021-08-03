@@ -3,8 +3,6 @@
 #include "ucs/type/thread_mode.h"
 #include "llvm/Support/ErrorHandling.h"
 
-#define MSG DataSubmit
-
 namespace transport::ucx {
 
 ContextTy::ContextTy() : Context() {
@@ -12,7 +10,7 @@ ContextTy::ContextTy() : Context() {
                          .features = UCP_FEATURE_TAG | UCP_FEATURE_WAKEUP};
 
   if (auto Status = ucp_init(&Params, nullptr, &Context))
-    ERR("failed to ucp_init {0}\n", ucs_status_string(Status))
+    ERR("failed to ucp_init ({0})", ucs_status_string(Status))
 }
 
 ContextTy::~ContextTy() { ucp_cleanup(Context); }
@@ -23,7 +21,7 @@ void WorkerTy::initialize(ucp_context_h *Context) {
                                 .thread_mode = UCS_THREAD_MODE_SERIALIZED};
 
   if (auto Status = ucp_worker_create(*Context, &Params, &Worker))
-    ERR("Could not initialize another worker {0}\n", ucs_status_string(Status))
+    ERR("failed ot ucp_worker_create ({0})", ucs_status_string(Status))
 
   Initialized = true;
 }
@@ -50,6 +48,11 @@ WorkerTy::WorkerTy(ucp_context_h *Context) : Worker(nullptr) {
   initialize(Context);
 }
 
+WorkerTy::WorkerTy(const WorkerTy &OldWorker) {
+  Worker = OldWorker.Worker;
+  Initialized = OldWorker.Initialized;
+}
+
 WorkerTy::~WorkerTy() {
   if (Initialized)
     ucp_worker_destroy(Worker);
@@ -59,9 +62,6 @@ SendFutureTy EndpointTy::asyncSend(const uint64_t Tag, const char *Message,
                                    const size_t Size) {
   RequestStatus *Req;
   auto *Ctx = new RequestStatus();
-
-  if ((Tag & ~TAG_MASK) == MSG)
-    dump(Message, Message + Size);
 
   Ctx->Complete = 0;
   ucp_request_param_t Param = {.op_attr_mask = UCP_OP_ATTR_FIELD_CALLBACK |
@@ -85,6 +85,7 @@ std::pair<MessageKind, std::string> WorkerTy::receive(const uint64_t Tag) {
   ucp_tag_message_h MsgTag;
 
   while (true) {
+    std::lock_guard Guard(ProgressMtx);
     MsgTag = ucp_tag_probe_nb(Worker, Tag, TAG_MASK, 1, &InfoTag);
     if (MsgTag != nullptr)
       break;
@@ -97,18 +98,15 @@ std::pair<MessageKind, std::string> WorkerTy::receive(const uint64_t Tag) {
     }
   }
 
-  auto Message = std::make_unique<char[]>(InfoTag.length);
+  std::string Message;
+  Message.resize(InfoTag.length);
   auto *Request = (RequestStatus *)ucp_tag_msg_recv_nb(
-      Worker, Message.get(), InfoTag.length, ucp_dt_make_contig(1), MsgTag,
+      Worker, Message.data(), InfoTag.length, ucp_dt_make_contig(1), MsgTag,
       receiveCallback);
 
   wait(Request);
 
-  if ((Tag & ~TAG_MASK) == MSG)
-    dump(Message.get(), Message.get() + InfoTag.length);
-
-  return {(MessageKind)(InfoTag.sender_tag >> 60),
-          std::string(Message.get(), InfoTag.length)};
+  return {(MessageKind)(InfoTag.sender_tag >> 60), Message};
 }
 
 EndpointTy::EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest)
@@ -149,34 +147,31 @@ EndpointTy::EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config)
 
 Base::InterfaceTy::InterfaceTy(ContextTy &Context,
                                const ConnectionConfigTy &Config)
-    : Worker((ucp_context_h *)Context), EP(Worker, Config) {}
+    : Worker((ucp_context_h *)Context), EP(Worker, Config), Config(Config) {}
 Base::InterfaceTy::InterfaceTy(ContextTy &Context,
                                ucp_conn_request_h ConnRequest)
     : Worker((ucp_context_h *)Context), EP(Worker, ConnRequest) {}
 
-void Base::InterfaceTy::send(MessageKind Type, std::string Message) {
+Base::InterfaceTy::InterfaceTy(const InterfaceTy &Interface)
+    : Worker(Interface.Worker), EP(Interface.EP), Config(Interface.Config) {}
+
+void Base::InterfaceTy::send(MessageKind Type, std::string Message,
+                             bool IsServer) {
   auto SlabTag = LastSendTag++;
   SlabTag = ((uint64_t)Type << 60) | SlabTag;
 
-  Queue.emplace(EP.asyncSend(SlabTag, Message.data(), Message.length()));
-}
-
-void Base::InterfaceTy::synchronize() {
-  while (!Queue.empty()) {
-    await(Queue.front());
-    Queue.pop();
-  }
+  await(EP.asyncSend(SlabTag, Message.data(), Message.length()));
 }
 
 void Base::InterfaceTy::send(MessageKind Type,
-                             std::pair<char *, size_t> Message) {
-  auto SlabTag = LastSendTag++;
+                             std::pair<char *, size_t> Message, bool IsServer) {
+  uint64_t SlabTag = LastSendTag++;
   SlabTag = ((uint64_t)Type << 60) | SlabTag;
 
-  Queue.emplace(EP.asyncSend(SlabTag, Message.first, Message.second));
+  await(EP.asyncSend(SlabTag, Message.first, Message.second));
 }
 
-void Base::InterfaceTy::await(SendFutureTy &Future) const {
+void Base::InterfaceTy::await(SendFutureTy Future) {
   if (Future.Request == nullptr)
     return;
 
@@ -185,6 +180,7 @@ void Base::InterfaceTy::await(SendFutureTy &Future) const {
         ucs_status_string(UCS_PTR_STATUS(Future.Request)))
   }
 
+  std::lock_guard Guard(Worker.ProgressMtx);
   while (Future.Context->Complete == 0)
     ucp_worker_progress(Worker);
 
@@ -195,7 +191,7 @@ void Base::InterfaceTy::await(SendFutureTy &Future) const {
     ERR("failed to send message {0}\n", ucs_status_string(Status))
 }
 
-void Base::InterfaceTy::await(ReceiveFutureTy &Future) const {
+void Base::InterfaceTy::await(ReceiveFutureTy Future) {
   if (!Future.Request)
     return;
 
@@ -205,6 +201,7 @@ void Base::InterfaceTy::await(ReceiveFutureTy &Future) const {
     ERR("failed to send message {0}\n",
         ucs_status_string(UCS_PTR_STATUS(Future.Request)))
   } else if (UCS_PTR_IS_PTR(Future.Request)) {
+    std::lock_guard Guard(Worker.ProgressMtx);
     while (!Future.Request->Complete) {
       ucp_worker_progress(Worker);
     }

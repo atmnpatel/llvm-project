@@ -46,7 +46,7 @@ enum MessageKind : char {
 };
 
 namespace custom {
-class Message {
+class MessageTy {
 protected:
   size_t MessageSize = 0;
   char *Buffer;
@@ -77,42 +77,42 @@ protected:
   void deserialize(void *&BufferStart, void *&BufferEnd);
 
 public:
-  Message(bool Empty = false);
-  Message(size_t Size);
-  Message(char * MessageBuffer);
-  virtual ~Message() = default;
+  MessageTy(bool Empty = false);
+  MessageTy(size_t Size);
+  MessageTy(char * MessageBuffer);
+  virtual ~MessageTy() = default;
   std::pair<char *, size_t> getBuffer();
 };
 
-struct I32 : public Message {
+struct I32 : public MessageTy {
   int32_t Value;
 
   explicit I32(int32_t Value);
   I32(std::string MessageBuffer);
 };
 
-struct I64 : public Message {
+struct I64 : public MessageTy {
   int64_t Value;
 
   explicit I64(int64_t Value);
   I64(std::string MessageBuffer);
 };
 
-struct Pointer : public Message {
+struct Pointer : public MessageTy {
   void *Value;
 
   explicit Pointer(uintptr_t Value);
   Pointer(std::string MessageBuffer);
 };
 
-struct TargetBinaryDescription : public Message {
+struct TargetBinaryDescription : public MessageTy {
   explicit TargetBinaryDescription(__tgt_bin_desc *TBD);
   TargetBinaryDescription(std::string &MessageBuffer, __tgt_bin_desc * TBD,
                           std::unordered_map<const void *, __tgt_device_image *>
                               &HostToRemoteDeviceImage);
 };
 
-struct Binary : public Message {
+struct Binary : public MessageTy {
   int32_t DeviceId;
   void *Image;
 
@@ -120,14 +120,14 @@ struct Binary : public Message {
   Binary(std::string MessageBuffer);
 };
 
-struct TargetTable : public Message {
+struct TargetTable : public MessageTy {
   __tgt_target_table *Table;
 
   TargetTable(__tgt_target_table *Table);
   TargetTable(std::string MessageBuffer);
 };
 
-struct DataAlloc : public Message {
+struct DataAlloc : public MessageTy {
   int32_t DeviceId;
   int64_t AllocSize;
   void *HstPtr;
@@ -136,7 +136,7 @@ struct DataAlloc : public Message {
   DataAlloc(std::string MessageBuffer);
 };
 
-struct DataDelete : public Message {
+struct DataDelete : public MessageTy {
   int32_t DeviceId;
   void *TgtPtr;
 
@@ -144,7 +144,7 @@ struct DataDelete : public Message {
   DataDelete(std::string MessageBuffer);
 };
 
-struct DataSubmit : public Message {
+struct DataSubmit : public MessageTy {
   int32_t DeviceId;
   void *TgtPtr, *HstPtr;
   int64_t DataSize;
@@ -153,7 +153,7 @@ struct DataSubmit : public Message {
   DataSubmit(std::string MessageBuffer);
 };
 
-struct DataRetrieve : public Message {
+struct DataRetrieve : public MessageTy {
   int32_t DeviceId;
   void *HstPtr, *TgtPtr;
   int64_t DataSize;
@@ -162,7 +162,7 @@ struct DataRetrieve : public Message {
   DataRetrieve(std::string MessageBuffer);
 };
 
-struct Data : public Message {
+struct Data : public MessageTy {
   int32_t Value;
   void *DataBuffer;
   size_t DataSize;
@@ -171,7 +171,7 @@ struct Data : public Message {
   Data(std::string MessageBuffer);
 };
 
-struct TargetRegion : public Message {
+struct TargetRegion : public MessageTy {
   int32_t DeviceId;
   void *TgtEntryPtr;
   void **TgtArgs;
@@ -183,7 +183,7 @@ struct TargetRegion : public Message {
   TargetRegion(std::string MessageBuffer);
 };
 
-struct TargetTeamRegion : public Message {
+struct TargetTeamRegion : public MessageTy {
   int32_t DeviceId;
   void *TgtEntryPtr;
   void **TgtArgs;
@@ -204,7 +204,7 @@ struct TargetTeamRegion : public Message {
 /// track of already copied device images.
 void unloadTargetBinaryDescription(
     const openmp::libomptarget::ucx::TargetBinaryDescription *Request,
-    __tgt_bin_desc *Desc,
+    __tgt_bin_desc *&Desc,
     std::unordered_map<const void *, __tgt_device_image *>
         &HostToRemoteDeviceImage);
 

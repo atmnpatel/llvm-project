@@ -63,9 +63,13 @@ struct ReceiveFutureTy {
   ReceiveFutureTy() : Request(nullptr), Message(nullptr) {}
 };
 
+extern std::vector<std::string> MessageKindToString;
+
 struct ConnectionConfigTy {
   std::string Address;
   uint16_t Port;
+
+  ConnectionConfigTy() = default;
 
   ConnectionConfigTy(std::string Addr) {
     const std::string Delimiter = ":";
@@ -88,14 +92,11 @@ struct ManagerConfigTy {
       std::string AddressString = Env;
       const std::string Delimiter = ",";
 
-      size_t Pos;
-      std::string Token;
-
       do {
-        Pos = (AddressString.find(Delimiter) != std::string::npos)
-                  ? AddressString.find(Delimiter)
-                  : AddressString.length();
-        Token = AddressString.substr(0, Pos);
+        auto Pos = (AddressString.find(Delimiter) != std::string::npos)
+                       ? AddressString.find(Delimiter)
+                       : AddressString.length();
+        auto Token = AddressString.substr(0, Pos);
         ConnectionConfigs.emplace_back(Token);
         AddressString.erase(0, Pos + Delimiter.length());
       } while (!AddressString.empty());

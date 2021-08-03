@@ -12,52 +12,35 @@
 
 namespace transport::ucx {
 
-class ClientTy : public Base, public BaseClientTy {};
+class ClientTy : public Base, public BaseClientTy {
+protected:
+  ConnectionConfigTy Config;
+  std::map<std::thread::id, int32_t> InterfaceId;
+  std::vector<std::unique_ptr<Base::InterfaceTy>> Interfaces;
 
-class ClientManagerTy final : public BaseClientManagerTy {
-  std::vector<std::unique_ptr<ClientTy>> Clients;
+  size_t getInterfaceIdx() {
+    std::stringstream SS;
+    SS << std::this_thread::get_id();
 
-  std::pair<int32_t, int32_t> mapDeviceId(int32_t DeviceId) override;
+    if (!InterfaceId.contains(std::this_thread::get_id())) {
+      auto Interface = std::make_unique<InterfaceTy>(Context, Config);
+      Interfaces.push_back(std::move(Interface));
+      InterfaceId[std::this_thread::get_id()] = Interfaces.size() - 1;
+    }
+
+    auto NextInterfaceIdx = InterfaceId[std::this_thread::get_id()];
+    return NextInterfaceIdx;
+  }
 
 public:
-  explicit ClientManagerTy(bool Protobuf);
-
-  int32_t registerLib(__tgt_bin_desc *Desc) override;
-  int32_t unregisterLib(__tgt_bin_desc *Desc) override;
-
-  int32_t isValidBinary(__tgt_device_image *Image) override;
-  int32_t getNumberOfDevices() override;
-
-  int32_t initDevice(int32_t DeviceId) override;
-  int64_t initRequires(int64_t RequiresFlags) override;
-
-  __tgt_target_table *loadBinary(int32_t DeviceId,
-                                 __tgt_device_image *Image) override;
-
-  void *dataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr) override;
-  int32_t dataDelete(int32_t DeviceId, void *TgtPtr) override;
-
-  int32_t dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
-                     int64_t Size) override;
-  int32_t dataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
-                       int64_t Size) override;
-
-  int32_t isDataExchangeable(int32_t SrcDevId, int32_t DstDevId) override;
-  int32_t dataExchange(int32_t SrcDevId, void *SrcPtr, int32_t DstDevId,
-                       void *DstPtr, int64_t Size) override;
-
-  int32_t runTargetRegion(int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs,
-                          ptrdiff_t *TgtOffsets, int32_t ArgNum) override;
-
-  int32_t runTargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
-                              void **TgtArgs, ptrdiff_t *TgtOffsets,
-                              int32_t ArgNum, int32_t TeamNum,
-                              int32_t ThreadLimit,
-                              uint64_t LoopTripCount) override;
+  ClientTy(ConnectionConfigTy Config);
 };
 
-class ProtobufClientTy : public ClientTy {
-  Base::InterfaceTy Interface;
+struct ClientManagerTy final : public BaseClientManagerTy {
+  explicit ClientManagerTy(bool Protobuf);
+};
+
+class ProtobufClientTy final : public ClientTy {
   std::map<int32_t, std::unordered_map<void *, void *>> RemoteEntries{};
   std::map<int32_t, std::unique_ptr<__tgt_target_table>> DevicesToTables{};
 
@@ -98,13 +81,7 @@ public:
                               uint64_t LoopTripCount) override;
 };
 
-class CustomClientTy : public ClientTy {
-private:
-  
-
-  Base::InterfaceTy Interface;
-
-public:
+struct CustomClientTy final : public ClientTy {
   explicit CustomClientTy(const ConnectionConfigTy &Config);
 
   int32_t registerLib(__tgt_bin_desc *Desc) override;

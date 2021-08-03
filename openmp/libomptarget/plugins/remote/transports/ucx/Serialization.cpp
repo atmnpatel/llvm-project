@@ -35,7 +35,7 @@ void loadTargetBinaryDescription(const __tgt_bin_desc *Desc,
 }
 
 void unloadTargetBinaryDescription(
-    const TargetBinaryDescription *Request, __tgt_bin_desc *Desc,
+    const TargetBinaryDescription *Request, __tgt_bin_desc *&Desc,
     std::unordered_map<const void *, __tgt_device_image *>
         &HostToRemoteDeviceImage) {
   Desc->NumDeviceImages = Request->images_size();
@@ -65,7 +65,7 @@ void unloadTargetBinaryDescription(
     CurImage->EntriesEnd = CurEntry;
 
     // Copy Device Image
-    CurImage->ImageStart = new char[Image.binary().size()];
+    CurImage->ImageStart = malloc(sizeof(char) * Image.binary().size());
     memcpy(CurImage->ImageStart,
            static_cast<const void *>(Image.binary().data()),
            Image.binary().size());
@@ -164,25 +164,26 @@ void copyOffloadEntry(const __tgt_offload_entry *Entry,
 }
 
 namespace custom {
-std::pair<char *, size_t> Message::getBuffer() {
+std::pair<char *, size_t> MessageTy::getBuffer() {
   return {Buffer, MessageSize};
 }
 
-Message::Message(bool Empty)
-    : MessageSize(Empty ? 1 : 0), Buffer(Empty ? (char *)calloc(1, MessageSize) : nullptr),
+MessageTy::MessageTy(bool Empty)
+    : MessageSize(Empty ? 1 : 0),
+      Buffer(Empty ? (char *)calloc(1, MessageSize) : nullptr),
       CurBuffer(Empty ? Buffer : nullptr) {}
-Message::Message(size_t Size)
+MessageTy::MessageTy(size_t Size)
     : MessageSize(Size), Buffer((char *)malloc(Size)), CurBuffer(Buffer) {}
 
-Message::Message(char *MessageBuffer)
+MessageTy::MessageTy(char *MessageBuffer)
     : Buffer(MessageBuffer), CurBuffer(Buffer) {}
 
-void Message::serialize(uintptr_t Value) {
+void MessageTy::serialize(uintptr_t Value) {
   std::memcpy((void *)((CurBuffer += sizeof(Value)) - sizeof(Value)), &Value,
               sizeof(Value));
 }
 
-void Message::serialize(void *BufferStart, void *BufferEnd) {
+void MessageTy::serialize(void *BufferStart, void *BufferEnd) {
   size_t BufferSize = ((uintptr_t)BufferEnd - (uintptr_t)BufferStart);
   std::memcpy((void *)((CurBuffer += sizeof(BufferSize)) - sizeof(BufferSize)),
               &BufferSize, sizeof(BufferSize));
@@ -190,11 +191,11 @@ void Message::serialize(void *BufferStart, void *BufferEnd) {
               BufferSize);
 }
 
-void Message::serialize(char *String) {
+void MessageTy::serialize(char *String) {
   serialize(String, String + strlen(String));
 }
 
-void Message::serialize(__tgt_offload_entry *Entry) {
+void MessageTy::serialize(__tgt_offload_entry *Entry) {
   serialize(Entry->name);
   serialize((uintptr_t)Entry->addr);
   serialize(Entry->size);
@@ -204,7 +205,7 @@ void Message::serialize(__tgt_offload_entry *Entry) {
   serialize(Entry->reserved);
 }
 
-void Message::serialize(__tgt_device_image *Image) {
+void MessageTy::serialize(__tgt_device_image *Image) {
   auto NumEntries = 0;
   for (auto *CurEntry = Image->EntriesBegin; CurEntry != Image->EntriesEnd;
        CurEntry++, NumEntries++)
@@ -218,14 +219,14 @@ void Message::serialize(__tgt_device_image *Image) {
   serialize(Image->ImageStart, Image->ImageEnd);
 }
 
-void *Message::deserializePointer() {
+void *MessageTy::deserializePointer() {
   void *Pointer = nullptr;
   std::memcpy(&Pointer, (CurBuffer += sizeof(Pointer)) - sizeof(Pointer),
               sizeof(Pointer));
   return Pointer;
 }
 
-void Message::deserialize(void *&BufferStart, void *&BufferEnd) {
+void MessageTy::deserialize(void *&BufferStart, void *&BufferEnd) {
   size_t StrSize = 0;
   deserialize(StrSize);
   BufferStart = new char[StrSize];
@@ -233,14 +234,14 @@ void Message::deserialize(void *&BufferStart, void *&BufferEnd) {
   BufferEnd = (void *)((uintptr_t)BufferStart + StrSize);
 }
 
-void Message::deserialize(char *&String) {
+void MessageTy::deserialize(char *&String) {
   void *BufferStart = (void *)String;
   void *BufferEnd = nullptr;
   deserialize(BufferStart, BufferEnd);
   String = (char *)BufferStart;
 }
 
-void Message::deserialize(__tgt_offload_entry *&Entry) {
+void MessageTy::deserialize(__tgt_offload_entry *&Entry) {
   deserialize(Entry->name);
   Entry->addr = deserializePointer();
   deserialize(Entry->size);
@@ -252,7 +253,7 @@ void Message::deserialize(__tgt_offload_entry *&Entry) {
   deserialize(Entry->reserved);
 }
 
-void Message::deserialize(__tgt_device_image *&Image) {
+void MessageTy::deserialize(__tgt_device_image *&Image) {
   int32_t NumEntries = 0;
   deserialize(NumEntries);
 
@@ -266,21 +267,25 @@ void Message::deserialize(__tgt_device_image *&Image) {
   deserialize(Image->ImageStart, Image->ImageEnd);
 }
 
-I32::I32(int32_t Value) : Message(sizeof(Value)) { serialize(Value); }
+I32::I32(int32_t Value) : MessageTy(sizeof(Value)), Value(Value) {
+  serialize(Value);
+}
 
-I32::I32(std::string MessageBuffer) : Message(MessageBuffer.data()) {
+I32::I32(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
   std::memcpy(&Value, Buffer, sizeof(int32_t));
 }
 
-I64::I64(int64_t Value) : Message(sizeof(Value)) { serialize(Value); }
+I64::I64(int64_t Value) : MessageTy(sizeof(Value)) { serialize(Value); }
 
-I64::I64(std::string MessageBuffer) : Message(MessageBuffer.data()) {
+I64::I64(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
   std::memcpy(&Value, Buffer, sizeof(int64_t));
 }
 
-Pointer::Pointer(uintptr_t Value) : Message(sizeof(Value)) { serialize(Value); }
+Pointer::Pointer(uintptr_t Value) : MessageTy(sizeof(Value)) {
+  serialize(Value);
+}
 
-Pointer::Pointer(std::string MessageBuffer) : Message(MessageBuffer.data()) {
+Pointer::Pointer(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
   std::memcpy(&Value, Buffer, sizeof(uintptr_t));
 }
 
@@ -291,9 +296,10 @@ TargetBinaryDescription::TargetBinaryDescription(__tgt_bin_desc *Description) {
   // Compute size of __tgt_offload_entries
   for (auto *CurEntry = Description->HostEntriesBegin;
        CurEntry != Description->HostEntriesEnd; CurEntry++) {
-    MessageSize += sizeof(size_t) + strlen(CurEntry->name) + sizeof(CurEntry->addr) +
-            sizeof(CurEntry->size) + (CurEntry->size ? CurEntry->size : 0) +
-            sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
+    MessageSize += sizeof(size_t) + strlen(CurEntry->name) +
+                   sizeof(CurEntry->addr) + sizeof(CurEntry->size) +
+                   (CurEntry->size ? CurEntry->size : 0) +
+                   sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
   }
 
   // Compute size of __tgt_device_images
@@ -302,14 +308,16 @@ TargetBinaryDescription::TargetBinaryDescription(__tgt_bin_desc *Description) {
   for (auto I = 0; I < Description->NumDeviceImages; I++, CurImage++) {
     MessageSize += sizeof(uintptr_t);
 
-    MessageSize += (uintptr_t)CurImage->ImageEnd - (uintptr_t)CurImage->ImageStart;
+    MessageSize +=
+        (uintptr_t)CurImage->ImageEnd - (uintptr_t)CurImage->ImageStart;
     MessageSize += sizeof(size_t);
 
     for (auto *CurEntry = CurImage->EntriesBegin;
          CurEntry != CurImage->EntriesEnd; CurEntry++)
-      MessageSize += sizeof(size_t) + strlen(CurEntry->name) + sizeof(CurEntry->addr) +
-              sizeof(CurEntry->size) + (CurEntry->size ? CurEntry->size : 0) +
-              sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
+      MessageSize += sizeof(size_t) + strlen(CurEntry->name) +
+                     sizeof(CurEntry->addr) + sizeof(CurEntry->size) +
+                     (CurEntry->size ? CurEntry->size : 0) +
+                     sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
     MessageSize += sizeof(NumEntries);
   }
 
@@ -341,7 +349,7 @@ TargetBinaryDescription::TargetBinaryDescription(
     std::string &MessageBuffer, __tgt_bin_desc *Description,
     std::unordered_map<const void *, __tgt_device_image *>
         &HostToRemoteDeviceImage)
-    : Message(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer.data()) {
   int32_t NumEntries;
   deserialize(NumEntries);
 
@@ -368,12 +376,12 @@ TargetBinaryDescription::TargetBinaryDescription(
 }
 
 Binary::Binary(int32_t DeviceId, __tgt_device_image *Image)
-    : Message(sizeof(DeviceId) + sizeof(Image)) {
+    : MessageTy(sizeof(DeviceId) + sizeof(Image)) {
   serialize(DeviceId);
   serialize((uintptr_t)Image);
 }
 
-Binary::Binary(std::string MessageBuffer) : Message(MessageBuffer.data()) {
+Binary::Binary(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
   deserialize(DeviceId);
   Image = deserializePointer();
 }
@@ -385,9 +393,10 @@ TargetTable::TargetTable(__tgt_target_table *Table) {
   // Compute size of __tgt_offload_entries
   for (auto *CurEntry = Table->EntriesBegin; CurEntry != Table->EntriesEnd;
        CurEntry++, NumEntries++) {
-    MessageSize += sizeof(size_t) + strlen(CurEntry->name) + sizeof(CurEntry->addr) +
-            sizeof(CurEntry->size) + (CurEntry->size ? CurEntry->size : 0) +
-            sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
+    MessageSize += sizeof(size_t) + strlen(CurEntry->name) +
+                   sizeof(CurEntry->addr) + sizeof(CurEntry->size) +
+                   (CurEntry->size ? CurEntry->size : 0) +
+                   sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
   }
 
   Buffer = new char[MessageSize];
@@ -400,7 +409,7 @@ TargetTable::TargetTable(__tgt_target_table *Table) {
 }
 
 TargetTable::TargetTable(std::string MessageBuffer)
-    : Message(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer.data()) {
   Table = new __tgt_target_table;
 
   int NumEntries;
@@ -424,34 +433,35 @@ DataAlloc::DataAlloc(int32_t DeviceId, int64_t AllocSize, void *HstPtr) {
 }
 
 DataAlloc::DataAlloc(std::string MessageBuffer)
-    : Message(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer.data()) {
   deserialize(DeviceId);
   deserialize(AllocSize);
   HstPtr = deserializePointer();
 }
 
 DataDelete::DataDelete(int32_t DeviceId, void *TgtPtr)
-    : Message(sizeof(DeviceId) + sizeof(TgtPtr)) {
+    : MessageTy(sizeof(DeviceId) + sizeof(TgtPtr)) {
   serialize(DeviceId);
   serialize((uintptr_t)TgtPtr);
 }
 
 DataDelete::DataDelete(std::string MessageBuffer)
-    : Message(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer.data()) {
   deserialize(DeviceId);
   TgtPtr = deserializePointer();
 }
 
 DataSubmit::DataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                        int64_t DataSize)
-    : Message(sizeof(DeviceId) + sizeof(uintptr_t) + sizeof(DataSize) + DataSize) {
+    : MessageTy(sizeof(DeviceId) + sizeof(uintptr_t) + sizeof(DataSize) +
+                DataSize) {
   serialize(DeviceId);
   serialize((uintptr_t)TgtPtr);
   serialize((void *)HstPtr, (void *)((uintptr_t)HstPtr + DataSize));
 }
 
 DataSubmit::DataSubmit(std::string MessageBuffer)
-    : Message(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer.data()) {
   deserialize(DeviceId);
   TgtPtr = deserializePointer();
   HstPtr = nullptr;
@@ -462,8 +472,8 @@ DataSubmit::DataSubmit(std::string MessageBuffer)
 
 DataRetrieve::DataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
                            int64_t DataSize)
-    : Message(sizeof(DeviceId) + sizeof(HstPtr) + sizeof(TgtPtr) +
-              sizeof(DataSize)) {
+    : MessageTy(sizeof(DeviceId) + sizeof(HstPtr) + sizeof(TgtPtr) +
+                sizeof(DataSize)) {
   serialize(DeviceId);
   serialize((uintptr_t)HstPtr);
   serialize((uintptr_t)TgtPtr);
@@ -471,7 +481,7 @@ DataRetrieve::DataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
 }
 
 DataRetrieve::DataRetrieve(std::string MessageBuffer)
-    : Message(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer.data()) {
   deserialize(DeviceId);
   HstPtr = deserializePointer();
   TgtPtr = deserializePointer();
@@ -479,12 +489,12 @@ DataRetrieve::DataRetrieve(std::string MessageBuffer)
 }
 
 Data::Data(int32_t Value, char *Buffer, size_t DataSize)
-    : Message(sizeof(DataSize) + DataSize + sizeof(Value)) {
+    : MessageTy(sizeof(DataSize) + DataSize + sizeof(Value)) {
   serialize(Value);
   serialize(Buffer, Buffer + DataSize);
 }
 
-Data::Data(std::string MessageBuffer) : Message(MessageBuffer.data()) {
+Data::Data(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
   deserialize(Value);
   DataBuffer = nullptr;
   void *BufferEnd = nullptr;
@@ -494,8 +504,8 @@ Data::Data(std::string MessageBuffer) : Message(MessageBuffer.data()) {
 
 TargetRegion::TargetRegion(int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs,
                            ptrdiff_t *TgtOffsets, int32_t ArgNum)
-    : Message(sizeof(DeviceId) + sizeof(TgtEntryPtr) +
-              sizeof(*TgtArgs) * ArgNum + sizeof(ptrdiff_t) * ArgNum) {
+    : MessageTy(sizeof(DeviceId) + sizeof(TgtEntryPtr) +
+                sizeof(*TgtArgs) * ArgNum + sizeof(ptrdiff_t) * ArgNum) {
   serialize(DeviceId);
   serialize((uintptr_t)TgtEntryPtr);
   serialize(ArgNum);
@@ -506,7 +516,7 @@ TargetRegion::TargetRegion(int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs,
 }
 
 TargetRegion::TargetRegion(std::string MessageBuffer)
-    : Message(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer.data()) {
   deserialize(DeviceId);
   TgtEntryPtr = deserializePointer();
   deserialize(ArgNum);
@@ -522,9 +532,9 @@ TargetTeamRegion::TargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
                                    void **TgtArgs, ptrdiff_t *TgtOffsets,
                                    int32_t ArgNum, int32_t TeamNum,
                                    int32_t ThreadLimit, uint64_t LoopTripCount)
-    : Message(sizeof(DeviceId) + sizeof(TgtEntryPtr) +
-              sizeof(*TgtArgs) * ArgNum + sizeof(ptrdiff_t) * ArgNum +
-              sizeof(TeamNum) + sizeof(ThreadLimit) + sizeof(LoopTripCount)) {
+    : MessageTy(sizeof(DeviceId) + sizeof(TgtEntryPtr) +
+                sizeof(*TgtArgs) * ArgNum + sizeof(ptrdiff_t) * ArgNum +
+                sizeof(TeamNum) + sizeof(ThreadLimit) + sizeof(LoopTripCount)) {
   serialize(DeviceId);
   serialize((uintptr_t)TgtEntryPtr);
   serialize(ArgNum);
@@ -538,7 +548,7 @@ TargetTeamRegion::TargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
 }
 
 TargetTeamRegion::TargetTeamRegion(std::string MessageBuffer)
-    : Message(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer.data()) {
   deserialize(DeviceId);
   TgtEntryPtr = deserializePointer();
   deserialize(ArgNum);
