@@ -71,7 +71,6 @@ public:
 
 class EndpointTy {
   ucp_ep_h EP;
-  ucp_worker_h DataWorker;
 
   /// Callback to execute when message has been sent
   static void sendCallback(void *, ucs_status_t, void *Data) {
@@ -90,8 +89,6 @@ class EndpointTy {
 public:
   EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest);
   EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config);
-
-  ~EndpointTy();
 
   SendFutureTy asyncSend(uint64_t Tag, const char *Message, size_t Size);
 
@@ -117,6 +114,7 @@ struct Base {
 
     InterfaceTy(ContextTy &Context, const ConnectionConfigTy &Config);
     InterfaceTy(ContextTy &Context, ucp_conn_request_h ConnRequest);
+    ~InterfaceTy();
 
     void send(MessageKind Type, std::string Message);
     void send(MessageKind Type, std::pair<char *, size_t> Message);

@@ -122,7 +122,7 @@ std::pair<MessageKind, std::string> WorkerTy::receive(const uint64_t Tag) {
 }
 
 EndpointTy::EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest)
-    : EP(nullptr), DataWorker(Worker), Connected(true) {
+    : EP(nullptr), Connected(true) {
 
   ucp_ep_params_t Params = {
       .field_mask =
@@ -138,7 +138,7 @@ EndpointTy::EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest)
 }
 
 EndpointTy::EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config)
-    : EP(nullptr), DataWorker(nullptr), Connected(true) {
+    : EP(nullptr), Connected(true) {
   sockaddr_in ConnectAddress = {
       .sin_family = AF_INET,
       .sin_port = htons(Config.Port),
@@ -159,24 +159,6 @@ EndpointTy::EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config)
         llvm::formatv("Failed to connect to address ({0})\n",
                       std::string(ucs_status_string(Status)))
             .str());
-}
-
-EndpointTy::~EndpointTy() {
-  ucp_request_param_t Param = {.op_attr_mask = UCP_OP_ATTR_FIELD_FLAGS,
-                               .flags = UCP_EP_CLOSE_FLAG_FORCE};
-  void *CloseEPRequest = ucp_ep_close_nbx(EP, &Param);
-  if (UCS_PTR_IS_PTR(CloseEPRequest)) {
-    ucs_status_t Status;
-    do {
-      ucp_worker_progress(DataWorker);
-      Status = ucp_request_check_status(CloseEPRequest);
-    } while (Status == UCS_INPROGRESS);
-
-    ucp_request_free(CloseEPRequest);
-  } else if (UCS_PTR_STATUS(CloseEPRequest) != UCS_OK) {
-    llvm::report_fatal_error(
-        llvm::formatv("failed to close ep {0}\n", (void *)EP).str());
-  }
 }
 
 Base::InterfaceTy::InterfaceTy(ContextTy &Context,
@@ -264,6 +246,24 @@ void Base::InterfaceTy::await(ReceiveFutureTy &Future) const {
 std::pair<MessageKind, std::string> Base::InterfaceTy::receive() {
   auto SlabTag = LastRecvTag++;
   return Worker.receive(SlabTag);
+}
+
+Base::InterfaceTy::~InterfaceTy() {
+  ucp_request_param_t Param = {.op_attr_mask = UCP_OP_ATTR_FIELD_FLAGS,
+      .flags = UCP_EP_CLOSE_FLAG_FORCE};
+  void *CloseEPRequest = ucp_ep_close_nbx(EP, &Param);
+  if (UCS_PTR_IS_PTR(CloseEPRequest)) {
+    ucs_status_t Status;
+    do {
+      ucp_worker_progress(Worker);
+      Status = ucp_request_check_status(CloseEPRequest);
+    } while (Status == UCS_INPROGRESS);
+
+    ucp_request_free(CloseEPRequest);
+  } else if (UCS_PTR_STATUS(CloseEPRequest) != UCS_OK) {
+    llvm::report_fatal_error(
+        llvm::formatv("failed to close ep {0}\n", (void *)EP).str());
+  }
 }
 
 } // namespace transport::ucx
