@@ -51,19 +51,14 @@ Server::ListenerTy::ListenerTy(ucp_worker_h Worker, ServerContextTy *Context,
 
   /* Create a listener to listen on the given socket address.*/
   if (auto Status = ucp_listener_create(Worker, &Params, Listener))
-    llvm::report_fatal_error(
-        llvm::formatv("Failed to listen: {0}", ucs_status_string(Status))
-            .str());
+    ERR("Failed to listen: {0}", ucs_status_string(Status))
 }
 
 void Server::ListenerTy::query() {
   ucp_listener_attr_t Attr = {.field_mask = UCP_LISTENER_ATTR_FIELD_SOCKADDR};
   auto Status = ucp_listener_query(*Listener, &Attr);
   if (Status != UCS_OK)
-    llvm::report_fatal_error(
-        llvm::formatv("failed to query the listener ({0})\n",
-                      ucs_status_string(Status))
-            .str());
+    ERR("failed to query the listener ({0})\n", ucs_status_string(Status))
 
   DP("Server is listening on IP %s port %s\n", getIP(&Attr.sockaddr).c_str(),
      getPort(&Attr.sockaddr).c_str());
@@ -261,7 +256,7 @@ void ProtobufServer::loadBinary(std::string &Message) {
                Request.device_id())
     loadTargetTable(TT, Response, Image);
   } else
-    llvm::report_fatal_error("Could not load binary");
+    ERR("Could not load binary");
 
   Interface->send(Count, Response.SerializeAsString());
 }
@@ -429,21 +424,11 @@ void CustomServer::listenForConnections(const ConnectionConfigTy &Config) {
 }
 
 std::vector<std::string> MessageKindToString = {
-    "RegisterLib",
-    "UnregisterLib",
-    "IsValidBinary",
-    "GetNumberOfDevices",
-    "InitDevice",
-    "InitRequires",
-    "LoadBinary",
-    "DataAlloc",
-    "DataDelete",
-    "DataSubmit",
-    "DataRetrieve",
-    "RunTargetRegion",
-    "RunTargetTeamRegion",
-    "Count"
-};
+    "RegisterLib",         "UnregisterLib", "IsValidBinary",
+    "GetNumberOfDevices",  "InitDevice",    "InitRequires",
+    "LoadBinary",          "DataAlloc",     "DataDelete",
+    "DataSubmit",          "DataRetrieve",  "RunTargetRegion",
+    "RunTargetTeamRegion", "Count"};
 
 void CustomServer::run() {
   while (true) {
@@ -575,7 +560,7 @@ void CustomServer::loadBinary(std::string &Message) {
     custom::TargetTable Response(TT);
     Interface->send(LoadBinary, Response.getBuffer());
   } else {
-    llvm::report_fatal_error("Could not load binary");
+    ERR("Could not load binary");
   }
 }
 

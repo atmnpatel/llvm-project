@@ -149,8 +149,6 @@ ProtobufClientTy::ProtobufClientTy(const ConnectionConfigTy &Config)
 
 int32_t ProtobufClientTy::getNumberOfDevices() {
   CLIENT_DBG("Getting number of devices")
-  //  auto *Request = new char[1];
-  //  Request[0] = '0';
   Interface.send(GetNumberOfDevices, std::string("0"));
 
   if (!Interface.EP.Connected) {

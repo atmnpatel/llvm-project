@@ -12,24 +12,6 @@
 
 #pragma once
 
-#define CLIENT_DBG(...)                                                        \
-  {                                                                            \
-    if (DebugLevel > 0) {                                                      \
-      fprintf(stderr, "[[Client]] --> ");                                      \
-      fprintf(stderr, __VA_ARGS__);                                            \
-      fprintf(stderr, "\n");                                                   \
-    }                                                                          \
-  }
-
-#define SERVER_DBG(...)                                                        \
-  {                                                                            \
-    if (DebugLevel > 0) {                                                      \
-      fprintf(stderr, "[[Server]] --> ");                                      \
-      fprintf(stderr, __VA_ARGS__);                                            \
-      fprintf(stderr, "\n");                                                   \
-    }                                                                          \
-  }
-
 #include "omptarget.h"
 #include <arpa/inet.h>
 #include <cstring>
@@ -50,6 +32,8 @@
 
 #define TAG_MASK 0x0fffffffffffff
 
+#define ERR(...) llvm::report_fatal_error(llvm::formatv(__VA_ARGS__).str());
+
 namespace transport::ucx {
 
 const uint16_t PortStringLength = 8;
@@ -64,7 +48,8 @@ struct SendFutureTy {
   RequestStatus *Request;
   RequestStatus *Context;
   const char *Message;
-  SendFutureTy(RequestStatus *Request, RequestStatus *Context, const char *Message)
+  SendFutureTy(RequestStatus *Request, RequestStatus *Context,
+               const char *Message)
       : Request(Request), Context(Context), Message(Message) {}
   SendFutureTy() : Request(nullptr), Context(nullptr), Message(nullptr) {}
 };
@@ -138,4 +123,4 @@ void dump(char *Begin, int32_t Size, const std::string &Title = "");
 void dump(int Offset, char *Begin, char *End);
 void dump(const char *Begin, const char *End, const std::string &Title = "");
 
-} // namespace ucx
+} // namespace transport::ucx

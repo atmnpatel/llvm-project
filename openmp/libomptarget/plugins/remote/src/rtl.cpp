@@ -40,9 +40,9 @@ __attribute__((constructor(101))) void initRPC() {
       Manager =
           (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(true);
     else
-      llvm::report_fatal_error("Invalid Serialization");
+      ERR("Invalid Serialization");
   } else
-    llvm::report_fatal_error("Invalid Transport");
+    ERR("Invalid Transport");
 }
 
 __attribute__((destructor(101))) void deinitRPC() {
@@ -52,10 +52,8 @@ __attribute__((destructor(101))) void deinitRPC() {
 
   if (!Transport || !strcmp(Transport, "gRPC"))
     delete (transport::grpc::ClientManagerTy *)Manager;
-  else if (!strcmp(Transport, "UCX"))
-    delete (transport::ucx::ClientManagerTy *)Manager;
   else
-    llvm::report_fatal_error("Invalid Transport");
+    delete (transport::ucx::ClientManagerTy *)Manager;
 }
 
 // Exposed library API function

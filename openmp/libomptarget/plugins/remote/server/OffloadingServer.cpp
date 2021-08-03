@@ -24,7 +24,8 @@ int main() {
   if (!Transport || !strcmp(Transport, "gRPC")) {
     transport::grpc::ClientManagerConfigTy Config;
 
-    transport::grpc::RemoteOffloadImpl Service(Config.MaxSize, Config.BlockSize);
+    transport::grpc::RemoteOffloadImpl Service(Config.MaxSize,
+                                               Config.BlockSize);
 
     grpc::ServerBuilder Builder;
     Builder.AddListeningPort(Config.ServerAddresses[0],
@@ -46,14 +47,15 @@ int main() {
 
     auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
     if (!Serialization || !strcmp(Serialization, "Custom"))
-      Server = (transport::ucx::Server *) new transport::ucx::CustomServer;
+      Server = (transport::ucx::Server *)new transport::ucx::CustomServer;
     else if (!strcmp(Serialization, "Protobuf"))
-      Server = (transport::ucx::Server *) new transport::ucx::ProtobufServer;
+      Server = (transport::ucx::Server *)new transport::ucx::ProtobufServer;
     else
-      llvm::report_fatal_error("Invalid Serialization Option");
+      ERR("Invalid Serialization Option")
 
     auto *ConnectionInfoStr = std::getenv("LIBOMPTARGET_RPC_ADDRESS");
-    auto ConnectionInfo = ConnectionInfoStr ? std::string(ConnectionInfoStr) : ":13337";
+    auto ConnectionInfo =
+        ConnectionInfoStr ? std::string(ConnectionInfoStr) : ":13337";
     auto Config = transport::ucx::ConnectionConfigTy(ConnectionInfo);
 
     Server->listenForConnections(Config);

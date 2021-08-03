@@ -63,10 +63,8 @@ class Server::ListenerTy {
          getIP(&Attr.client_address).c_str(),
          getPort(&Attr.client_address).c_str());
     } else if (Status != UCS_ERR_UNSUPPORTED) {
-      llvm::report_fatal_error(
-          llvm::formatv("failed to query the connection request ({0})\n",
-                        ucs_status_string(Status))
-              .str());
+      ERR("failed to query the connection request ({0})\n",
+          ucs_status_string(Status))
     }
 
     Context->ConnRequests.push_back(ConnRequest);
@@ -85,14 +83,14 @@ class ProtobufServer : public Server {
     auto Message = Interface->receive().second;
     T Request;
     if (!Request.ParseFromString(Message))
-      llvm::report_fatal_error("Could not parse message");
+      ERR("Could not parse message");
     return Request;
   }
 
   template <typename T> T deserialize(std::string &Message) {
     T Request;
     if (!Request.ParseFromString(Message))
-      llvm::report_fatal_error("Could not parse message");
+      ERR("Could not parse message");
     return Request;
   }
 

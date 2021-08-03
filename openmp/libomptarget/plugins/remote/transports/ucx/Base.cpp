@@ -12,9 +12,7 @@ ContextTy::ContextTy() : Context() {
                          .features = UCP_FEATURE_TAG | UCP_FEATURE_WAKEUP};
 
   if (auto Status = ucp_init(&Params, nullptr, &Context))
-    llvm::report_fatal_error(
-        llvm::formatv("failed to ucp_init {0}\n", ucs_status_string(Status))
-            .str());
+    ERR("failed to ucp_init {0}\n", ucs_status_string(Status))
 }
 
 ContextTy::~ContextTy() { ucp_cleanup(Context); }
@@ -25,10 +23,7 @@ void WorkerTy::initialize(ucp_context_h *Context) {
                                 .thread_mode = UCS_THREAD_MODE_SERIALIZED};
 
   if (auto Status = ucp_worker_create(*Context, &Params, &Worker))
-    llvm::report_fatal_error(
-        llvm::formatv("Could not initialize another worker {0}\n",
-                      ucs_status_string(Status))
-            .str());
+    ERR("Could not initialize another worker {0}\n", ucs_status_string(Status))
 
   Initialized = true;
 }
@@ -47,8 +42,7 @@ void WorkerTy::wait(RequestStatus *Request) {
     ucp_request_release(Request);
 
     if (Status != UCS_OK)
-      llvm::report_fatal_error(
-          llvm::formatv("unable to {0}\n", ucs_status_string(Status)).str());
+      ERR("unable to {0}\n", ucs_status_string(Status))
   }
 }
 
@@ -80,10 +74,7 @@ SendFutureTy EndpointTy::asyncSend(const uint64_t Tag, const char *Message,
     return {};
 
   if (UCS_PTR_IS_ERR(Req))
-    llvm::report_fatal_error(
-        llvm::formatv("failed to send message {0}\n",
-                      ucs_status_string(UCS_PTR_STATUS(Req)))
-            .str());
+    ERR("failed to send message {0}\n", ucs_status_string(UCS_PTR_STATUS(Req)))
 
   return {Req, Ctx, Message};
 }
@@ -102,8 +93,7 @@ std::pair<MessageKind, std::string> WorkerTy::receive(const uint64_t Tag) {
 
     Status = ucp_worker_wait(Worker);
     if (Status != UCS_OK) {
-      llvm::report_fatal_error("Failed to send message {0}",
-                               ucs_status_string(Status));
+      ERR("Failed to send message {0}", ucs_status_string(Status))
     }
   }
 
@@ -115,7 +105,7 @@ std::pair<MessageKind, std::string> WorkerTy::receive(const uint64_t Tag) {
   wait(Request);
 
   if ((Tag & ~TAG_MASK) == MSG)
-    dump(Message.get(), Message.get()+InfoTag.length);
+    dump(Message.get(), Message.get() + InfoTag.length);
 
   return {(MessageKind)(InfoTag.sender_tag >> 60),
           std::string(Message.get(), InfoTag.length)};
@@ -131,10 +121,8 @@ EndpointTy::EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest)
       .conn_request = ConnRequest};
 
   if (auto Status = ucp_ep_create(Worker, &Params, &EP))
-    llvm::report_fatal_error(
-        llvm::formatv("failed to create an endpoint on the server: {0}\n",
-                      ucs_status_string(Status))
-            .str());
+    ERR("failed to create an endpoint on the server: {0}\n",
+        ucs_status_string(Status))
 }
 
 EndpointTy::EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config)
@@ -155,10 +143,8 @@ EndpointTy::EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config)
                    .addrlen = sizeof(ConnectAddress)}};
 
   if (auto Status = ucp_ep_create(Worker, &Params, &EP))
-    llvm::report_fatal_error(
-        llvm::formatv("Failed to connect to address ({0})\n",
-                      std::string(ucs_status_string(Status)))
-            .str());
+    ERR("Failed to connect to address ({0})\n",
+        std::string(ucs_status_string(Status)))
 }
 
 Base::InterfaceTy::InterfaceTy(ContextTy &Context,
@@ -168,8 +154,7 @@ Base::InterfaceTy::InterfaceTy(ContextTy &Context,
                                ucp_conn_request_h ConnRequest)
     : Worker((ucp_context_h *)Context), EP(Worker, ConnRequest) {}
 
-void
-Base::InterfaceTy::send(MessageKind Type, std::string Message) {
+void Base::InterfaceTy::send(MessageKind Type, std::string Message) {
   auto SlabTag = LastSendTag++;
   SlabTag = ((uint64_t)Type << 60) | SlabTag;
 
@@ -183,8 +168,8 @@ void Base::InterfaceTy::synchronize() {
   }
 }
 
-void
-Base::InterfaceTy::send(MessageKind Type, std::pair<char *, size_t> Message) {
+void Base::InterfaceTy::send(MessageKind Type,
+                             std::pair<char *, size_t> Message) {
   auto SlabTag = LastSendTag++;
   SlabTag = ((uint64_t)Type << 60) | SlabTag;
 
@@ -196,12 +181,8 @@ void Base::InterfaceTy::await(SendFutureTy &Future) const {
     return;
 
   if (UCS_PTR_IS_ERR(Future.Request)) {
-    DP("Failed to send message (%s)\n",
-       ucs_status_string(UCS_PTR_STATUS(Future.Request)));
-    llvm::report_fatal_error(
-        llvm::formatv("Failed to send message {0}\n",
-                      ucs_status_string(UCS_PTR_STATUS(Future.Request)))
-            .str());
+    ERR("Failed to send message {0}\n",
+        ucs_status_string(UCS_PTR_STATUS(Future.Request)))
   }
 
   while (Future.Context->Complete == 0)
@@ -211,9 +192,7 @@ void Base::InterfaceTy::await(SendFutureTy &Future) const {
   ucp_request_free(Future.Request);
 
   if (Status != UCS_OK && EP.Connected)
-    llvm::report_fatal_error(
-        llvm::formatv("failed to send message {0}\n", ucs_status_string(Status))
-            .str());
+    ERR("failed to send message {0}\n", ucs_status_string(Status))
 }
 
 void Base::InterfaceTy::await(ReceiveFutureTy &Future) const {
@@ -223,10 +202,8 @@ void Base::InterfaceTy::await(ReceiveFutureTy &Future) const {
   ucs_status_t Status;
 
   if (UCS_PTR_IS_ERR(Future.Request)) {
-    llvm::report_fatal_error(
-        llvm::formatv("failed to send message {0}\n",
-                      ucs_status_string(UCS_PTR_STATUS(Future.Request)))
-            .str());
+    ERR("failed to send message {0}\n",
+        ucs_status_string(UCS_PTR_STATUS(Future.Request)))
   } else if (UCS_PTR_IS_PTR(Future.Request)) {
     while (!Future.Request->Complete) {
       ucp_worker_progress(Worker);
@@ -237,9 +214,7 @@ void Base::InterfaceTy::await(ReceiveFutureTy &Future) const {
     ucp_request_release(Future.Request);
 
     if (Status != UCS_OK)
-      llvm::report_fatal_error(llvm::formatv("failed to send message {0}\n",
-                                             ucs_status_string(Status))
-                                   .str());
+      ERR("failed to send message {0}\n", ucs_status_string(Status))
   }
 }
 
@@ -250,7 +225,7 @@ std::pair<MessageKind, std::string> Base::InterfaceTy::receive() {
 
 Base::InterfaceTy::~InterfaceTy() {
   ucp_request_param_t Param = {.op_attr_mask = UCP_OP_ATTR_FIELD_FLAGS,
-      .flags = UCP_EP_CLOSE_FLAG_FORCE};
+                               .flags = UCP_EP_CLOSE_FLAG_FORCE};
   void *CloseEPRequest = ucp_ep_close_nbx(EP, &Param);
   if (UCS_PTR_IS_PTR(CloseEPRequest)) {
     ucs_status_t Status;
@@ -261,8 +236,7 @@ Base::InterfaceTy::~InterfaceTy() {
 
     ucp_request_free(CloseEPRequest);
   } else if (UCS_PTR_STATUS(CloseEPRequest) != UCS_OK) {
-    llvm::report_fatal_error(
-        llvm::formatv("failed to close ep {0}\n", (void *)EP).str());
+    ERR("failed to close ep {0}\n", (void *)EP)
   }
 }
 
