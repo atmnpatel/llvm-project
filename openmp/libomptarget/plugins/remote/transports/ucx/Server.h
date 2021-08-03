@@ -10,7 +10,7 @@ extern PluginManager *PM;
 
 namespace transport::ucx {
 
-class Server : public Base {
+class ServerTy : public Base {
 protected:
   /* UCX Interface */
   std::unique_ptr<InterfaceTy> Interface;
@@ -40,13 +40,28 @@ protected:
   int32_t Devices;
 
 public:
-  Server();
-  ~Server();
+  ServerTy();
+  ~ServerTy();
 
-  virtual void listenForConnections(const ConnectionConfigTy &Config) = 0;
+  void listenForConnections(const ConnectionConfigTy &Config);
+
+  void run();
+  virtual void getNumberOfDevices() = 0;
+  virtual void registerLib(std::string &Message) = 0;
+  virtual void isValidBinary(std::string &Message) = 0;
+  virtual void initRequires(std::string &Message) = 0;
+  virtual void initDevice(std::string &Message) = 0;
+  virtual void loadBinary(std::string &Message) = 0;
+  virtual void dataAlloc(std::string &Message) = 0;
+  virtual void dataSubmit(std::string &Message) = 0;
+  virtual void dataRetrieve(std::string &Message) = 0;
+  virtual void runTargetRegion(std::string &Message) = 0;
+  virtual void runTargetTeamRegion(std::string &Message) = 0;
+  virtual void dataDelete(std::string &Message) = 0;
+  virtual void unregisterLib(std::string &Message) = 0;
 };
 
-class Server::ListenerTy {
+class ServerTy::ListenerTy {
   ucp_listener_h *Listener;
 
   static void handleConnectionCallback(ucp_conn_request_h ConnRequest,
@@ -78,7 +93,7 @@ public:
   void query();
 };
 
-class ProtobufServer : public Server {
+class ProtobufServerTy : public ServerTy {
   template <typename T> T deserialize() {
     auto Message = Interface->receive().second;
     T Request;
@@ -95,41 +110,35 @@ class ProtobufServer : public Server {
   }
 
 public:
-  void listenForConnections(const ConnectionConfigTy &Config) override;
 
-  void run();
-  void getNumberOfDevices();
-  void registerLib(std::string &Message);
-  void isValidBinary(std::string &Message);
-  void initRequires(std::string &Message);
-  void initDevice(std::string &Message);
-  void loadBinary(std::string &Message);
-  void dataAlloc(std::string &Message);
-  void dataSubmit(std::string &Message);
-  void dataRetrieve(std::string &Message);
-  void runTargetRegion(std::string &Message);
-  void runTargetTeamRegion(std::string &Message);
-  void dataDelete(std::string &Message);
-  void unregisterLib(std::string &Message);
+  void getNumberOfDevices() override;
+  void registerLib(std::string &Message) override;
+  void isValidBinary(std::string &Message) override;
+  void initRequires(std::string &Message) override;
+  void initDevice(std::string &Message) override;
+  void loadBinary(std::string &Message) override;
+  void dataAlloc(std::string &Message) override;
+  void dataSubmit(std::string &Message) override;
+  void dataRetrieve(std::string &Message) override;
+  void runTargetRegion(std::string &Message) override;
+  void runTargetTeamRegion(std::string &Message) override;
+  void dataDelete(std::string &Message) override;
+  void unregisterLib(std::string &Message) override;
 };
 
-class CustomServer : public Server {
-public:
-  void listenForConnections(const ConnectionConfigTy &Config) override;
-
-  void run();
-  void getNumberOfDevices();
-  void registerLib(std::string &Message);
-  void isValidBinary(std::string &Message);
-  void initRequires(std::string &Message);
-  void initDevice(std::string &Message);
-  void loadBinary(std::string &Message);
-  void dataAlloc(std::string &Message);
-  void dataSubmit(std::string &Message);
-  void dataRetrieve(std::string &Message);
-  void runTargetRegion(std::string &Message);
-  void runTargetTeamRegion(std::string &Message);
-  void dataDelete(std::string &Message);
-  void unregisterLib(std::string &Message);
+struct CustomServerTy : public ServerTy {
+  void getNumberOfDevices() override;
+  void registerLib(std::string &Message) override;
+  void isValidBinary(std::string &Message) override;
+  void initRequires(std::string &Message) override;
+  void initDevice(std::string &Message) override;
+  void loadBinary(std::string &Message) override;
+  void dataAlloc(std::string &Message) override;
+  void dataSubmit(std::string &Message) override;
+  void dataRetrieve(std::string &Message) override;
+  void runTargetRegion(std::string &Message) override;
+  void runTargetTeamRegion(std::string &Message) override;
+  void dataDelete(std::string &Message) override;
+  void unregisterLib(std::string &Message) override;
 };
 } // namespace transport::ucx

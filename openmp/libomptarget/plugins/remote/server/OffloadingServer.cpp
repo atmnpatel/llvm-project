@@ -43,13 +43,13 @@ int main() {
   }
 
   if (!strcmp(Transport, "UCX")) {
-    transport::ucx::Server *Server;
+    transport::ucx::ServerTy *Server;
 
     auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
     if (!Serialization || !strcmp(Serialization, "Custom"))
-      Server = (transport::ucx::Server *)new transport::ucx::CustomServer;
+      Server = (transport::ucx::ServerTy *)new transport::ucx::CustomServerTy;
     else if (!strcmp(Serialization, "Protobuf"))
-      Server = (transport::ucx::Server *)new transport::ucx::ProtobufServer;
+      Server = (transport::ucx::ServerTy *)new transport::ucx::ProtobufServerTy;
     else
       ERR("Invalid Serialization Option")
 
