@@ -113,7 +113,7 @@ struct ManagerConfigTy {
         Token = AddressString.substr(0, Pos);
         ConnectionConfigs.emplace_back(Token);
         AddressString.erase(0, Pos + Delimiter.length());
-      } while ((Pos = AddressString.find(Delimiter)) != std::string::npos);
+      } while (!AddressString.empty());
     } else
       ConnectionConfigs.emplace_back("0.0.0.0:13337");
 
