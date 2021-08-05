@@ -124,4 +124,6 @@ void dump(char *Begin, int32_t Size, const std::string &Title = "");
 void dump(int Offset, char *Begin, char *End);
 void dump(const char *Begin, const char *End, const std::string &Title = "");
 
+void dump(__tgt_bin_desc *Desc);
+
 } // namespace transport::ucx

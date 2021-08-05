@@ -237,7 +237,12 @@ void MessageTy::deserialize(void *&BufferStart, void *&BufferEnd) {
 void MessageTy::deserialize(char *&String) {
   void *BufferStart = (void *)String;
   void *BufferEnd = nullptr;
-  deserialize(BufferStart, BufferEnd);
+  size_t StrSize = 0;
+  deserialize(StrSize);
+  BufferStart = new char[StrSize+1];
+  std::memcpy(BufferStart, (CurBuffer += StrSize) - StrSize, StrSize);
+  ((char *) BufferStart)[StrSize] = '\0';
+  BufferEnd = (void *)((uintptr_t)BufferStart + StrSize + 1);
   String = (char *)BufferStart;
 }
 
