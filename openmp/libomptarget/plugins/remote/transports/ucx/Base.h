@@ -108,6 +108,8 @@ struct Base {
   Base() = default;
   virtual ~Base() = default;
 
+  std::mutex GMtx;
+
   struct InterfaceTy {
     WorkerTy Worker;
     EndpointTy EP;

@@ -154,6 +154,9 @@ Status RemoteOffloadImpl::DataAlloc(ServerContext *Context,
 
   SERVER_DBG("Allocated at " DPxMOD "", DPxPTR((void *)TgtPtr))
 
+  printf("Server: Allocated %ld bytes at %p on device %d\n", Request->size(),
+         (void *)TgtPtr, Request->device_id());
+
   return Status::OK;
 }
 
@@ -296,6 +299,15 @@ Status RemoteOffloadImpl::RunTargetRegion(ServerContext *Context,
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request->tgt_entry_ptr())->addr;
 
+  printf("Server: Device: %d, Executing %p\n", Request->device_id(),
+         TgtEntryPtr);
+  printf("TgtArgs: \n");
+  auto *Offset = Request->tgt_offsets().data();
+  for (auto *Arg = Request->tgt_args().data();
+       Arg != Request->tgt_args().data() + Request->tgt_args_size();
+       Arg++, Offset++) {
+    printf(" Arg: %p + %p\n", Arg, Offset);
+  }
   int32_t Ret = PM->Devices[Request->device_id()].RTL->run_region(
       mapHostRTLDeviceId(Request->device_id()), TgtEntryPtr,
       (void **)TgtArgs.data(), TgtOffsets.data(), Request->arg_num());
@@ -320,6 +332,18 @@ Status RemoteOffloadImpl::RunTargetTeamRegion(ServerContext *Context,
     TgtOffsets[I] = (ptrdiff_t)*TgtOffsetItr;
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request->tgt_entry_ptr())->addr;
+
+  printf(
+      "Server: Device: %d, Executing %p with %d teams, %d threads, %lu loops\n",
+      Request->device_id(), TgtEntryPtr, Request->team_num(),
+      Request->thread_limit(), Request->loop_tripcount());
+  printf("TgtArgs: \n");
+  auto *Offset = Request->tgt_offsets().data();
+  for (auto *Arg = Request->tgt_args().data();
+       Arg != Request->tgt_args().data() + Request->tgt_args_size();
+       Arg++, Offset++) {
+    printf(" Arg: %p + %p\n", Arg, Offset);
+  }
 
   int32_t Ret = PM->Devices[Request->device_id()].RTL->run_team_region(
       mapHostRTLDeviceId(Request->device_id()), TgtEntryPtr,

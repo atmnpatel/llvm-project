@@ -344,6 +344,7 @@ CustomClientTy::CustomClientTy(const ConnectionConfigTy &Config)
     : ClientTy(Config) {}
 
 int32_t CustomClientTy::getNumberOfDevices() {
+  //std::lock_guard Guard(GMtx);
   custom::MessageTy Request(true);
   auto InterfaceIdx = getInterfaceIdx();
   Interfaces[InterfaceIdx]->send(MessageKind::GetNumberOfDevices,
@@ -357,6 +358,7 @@ int32_t CustomClientTy::getNumberOfDevices() {
 }
 
 int32_t CustomClientTy::registerLib(__tgt_bin_desc *Description) {
+  //std::lock_guard Guard(GMtx);
   auto InterfaceIdx = getInterfaceIdx();
   custom::TargetBinaryDescription Request(Description);
   Interfaces[InterfaceIdx]->send(MessageKind::RegisterLib, Request.getBuffer());
@@ -367,6 +369,7 @@ int32_t CustomClientTy::registerLib(__tgt_bin_desc *Description) {
 }
 
 int32_t CustomClientTy::unregisterLib(__tgt_bin_desc *Description) {
+  //std::lock_guard Guard(GMtx);
   custom::Pointer Request((uintptr_t)Description);
   auto InterfaceIdx = getInterfaceIdx();
 
@@ -379,6 +382,7 @@ int32_t CustomClientTy::unregisterLib(__tgt_bin_desc *Description) {
 }
 
 int32_t CustomClientTy::isValidBinary(__tgt_device_image *Image) {
+  //std::lock_guard Guard(GMtx);
   custom::Pointer Request((uintptr_t)Image);
   auto InterfaceIdx = getInterfaceIdx();
   Interfaces[InterfaceIdx]->send(MessageKind::IsValidBinary,
@@ -390,6 +394,7 @@ int32_t CustomClientTy::isValidBinary(__tgt_device_image *Image) {
 }
 
 int32_t CustomClientTy::initDevice(int32_t DeviceId) {
+  //std::lock_guard Guard(GMtx);
   custom::I32 Request(DeviceId);
   auto InterfaceIdx = getInterfaceIdx();
 
@@ -401,6 +406,7 @@ int32_t CustomClientTy::initDevice(int32_t DeviceId) {
 }
 
 int64_t CustomClientTy::initRequires(int64_t RequiresFlags) {
+  //std::lock_guard Guard(GMtx);
   custom::I64 Request(RequiresFlags);
   auto InterfaceIdx = getInterfaceIdx();
 
@@ -414,6 +420,7 @@ int64_t CustomClientTy::initRequires(int64_t RequiresFlags) {
 
 __tgt_target_table *CustomClientTy::loadBinary(int32_t DeviceId,
                                                __tgt_device_image *Image) {
+  //std::lock_guard Guard(GMtx);
   custom::Binary Request(DeviceId, Image);
   auto InterfaceIdx = getInterfaceIdx();
 
@@ -425,10 +432,12 @@ __tgt_target_table *CustomClientTy::loadBinary(int32_t DeviceId,
 }
 
 int32_t CustomClientTy::isDataExchangeable(int32_t SrcDevId, int32_t DstDevId) {
+  //std::lock_guard Guard(GMtx);
   llvm_unreachable("Unimplemented");
 }
 
 void *CustomClientTy::dataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr) {
+  //std::lock_guard Guard(GMtx);
   custom::DataAlloc Request(DeviceId, Size, HstPtr);
   auto InterfaceIdx = getInterfaceIdx();
 
@@ -436,10 +445,14 @@ void *CustomClientTy::dataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr) {
 
   custom::Pointer Response(Interfaces[InterfaceIdx]->receive().second);
 
+  printf("Allocated %ld bytes at %p on device %d\n", Size,
+         (void *)Response.Value, DeviceId);
+
   return Response.Value;
 }
 
 int32_t CustomClientTy::dataDelete(int32_t DeviceId, void *TgtPtr) {
+  //std::lock_guard Guard(GMtx);
   custom::DataDelete Request(DeviceId, TgtPtr);
   auto InterfaceIdx = getInterfaceIdx();
 
@@ -452,6 +465,7 @@ int32_t CustomClientTy::dataDelete(int32_t DeviceId, void *TgtPtr) {
 
 int32_t CustomClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                                    int64_t Size) {
+  //std::lock_guard Guard(GMtx);
   custom::DataSubmit Request(DeviceId, TgtPtr, HstPtr, Size);
 
   auto InterfaceIdx = getInterfaceIdx();
@@ -464,6 +478,7 @@ int32_t CustomClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
 
 int32_t CustomClientTy::dataRetrieve(int32_t DeviceId, void *HstPtr,
                                      void *TgtPtr, int64_t Size) {
+  //std::lock_guard Guard(GMtx);
   custom::DataRetrieve Request(DeviceId, HstPtr, TgtPtr, Size);
   auto InterfaceIdx = getInterfaceIdx();
 
@@ -480,12 +495,14 @@ int32_t CustomClientTy::dataRetrieve(int32_t DeviceId, void *HstPtr,
 int32_t CustomClientTy::dataExchange(int32_t SrcDevId, void *SrcPtr,
                                      int32_t DstDevId, void *DstPtr,
                                      int64_t Size) {
+  //std::lock_guard Guard(GMtx);
   llvm_unreachable("");
 }
 
 int32_t CustomClientTy::runTargetRegion(int32_t DeviceId, void *TgtEntryPtr,
                                         void **TgtArgs, ptrdiff_t *TgtOffsets,
                                         int32_t ArgNum) {
+  //std::lock_guard Guard(GMtx);
   custom::TargetRegion Request(DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets,
                                ArgNum);
   auto InterfaceIdx = getInterfaceIdx();
@@ -503,6 +520,7 @@ int32_t CustomClientTy::runTargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
                                             int32_t ArgNum, int32_t TeamNum,
                                             int32_t ThreadLimit,
                                             uint64_t LoopTripCount) {
+  //std::lock_guard Guard(GMtx);
   custom::TargetTeamRegion Request(DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets,
                                    ArgNum, TeamNum, ThreadLimit, LoopTripCount);
   auto InterfaceIdx = getInterfaceIdx();
