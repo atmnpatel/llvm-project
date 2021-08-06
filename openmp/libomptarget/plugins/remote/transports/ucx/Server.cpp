@@ -33,6 +33,7 @@ ServerTy::~ServerTy() {
     if (Thread.joinable())
       Thread.join();
   }
+  std::this_thread::sleep_for(std::chrono::seconds(2));
 }
 
 ServerTy::ListenerTy::ListenerTy(ucp_worker_h Worker, ServerContextTy *Context,
