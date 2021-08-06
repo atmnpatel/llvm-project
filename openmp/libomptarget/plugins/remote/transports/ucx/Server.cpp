@@ -80,8 +80,6 @@ void ProtobufServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
 
   unloadTargetBinaryDescription(&Description, TBD, HostToRemoteDeviceImage);
 
-  dump(TBD);
-
   PM->RTLs.RegisterLib(TBD);
 
   I32 Response;
@@ -193,8 +191,8 @@ void ProtobufServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
   Pointer Response;
   Response.set_number(TgtPtr);
 
-  printf("Server: Allocated %ld bytes at %p on device %d\n", Request.size(),
-         (void *)TgtPtr, Request.device_id());
+//  printf("Server: Allocated %ld bytes at %p on device %d\n", Request.size(),
+//         (void *)TgtPtr, Request.device_id());
 
   Interfaces[InterfaceIdx]->send(Count, Response.SerializeAsString(), true);
 
@@ -301,6 +299,7 @@ void ProtobufServerTy::runTargetTeamRegion(size_t InterfaceIdx,
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request.tgt_entry_ptr())->addr;
 
+  /*
   printf("Server: Device: %d, Executing %p with %d teams, %d threads, %lu loops\n",
          Request.device_id(), TgtEntryPtr, Request.team_num(),
          Request.thread_limit(), Request.loop_tripcount());
@@ -310,6 +309,7 @@ void ProtobufServerTy::runTargetTeamRegion(size_t InterfaceIdx,
        Arg++, Offset++) {
     printf(" Arg: %p + %p\n", Arg, Offset);
   }
+   */
 
   int32_t Ret = PM->Devices[Request.device_id()].RTL->run_team_region(
       mapHostRTLDeviceId(Request.device_id()), TgtEntryPtr,
@@ -504,8 +504,8 @@ void CustomServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
       mapHostRTLDeviceId(Request.DeviceId), Request.AllocSize,
       (void *)Request.HstPtr, TARGET_ALLOC_DEFAULT);
 
-  printf("Server: Allocated %ld bytes at %p on device %d\n", Request.AllocSize,
-         (void *)TgtPtr, Request.DeviceId);
+//  printf("Server: Allocated %ld bytes at %p on device %d\n", Request.AllocSize,
+//         (void *)TgtPtr, Request.DeviceId);
 
   custom::Pointer Response((uintptr_t)TgtPtr);
   Interfaces[InterfaceIdx]->send(DataAlloc, Response.getBuffer(), true);
@@ -551,6 +551,7 @@ void CustomServerTy::runTargetTeamRegion(size_t InterfaceIdx,
                                          std::string &Message) {
   custom::TargetTeamRegion Request(Message);
 
+  /*
   printf("Server: Device: %d, Executing %p with %d teams, %d threads, %lu loops\n",
          Request.DeviceId, Request.TgtEntryPtr, Request.TeamNum,
          Request.ThreadLimit, Request.LoopTripCount);
@@ -560,6 +561,7 @@ void CustomServerTy::runTargetTeamRegion(size_t InterfaceIdx,
        Arg++, Offset++) {
     printf(" Arg: %p + %p\n", Arg, Offset);
   }
+   */
 
   custom::I32 Response(PM->Devices[Request.DeviceId].RTL->run_team_region(
       mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,

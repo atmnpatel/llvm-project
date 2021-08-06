@@ -17,23 +17,22 @@
 
 #include "Utils.h"
 #include "device.h"
-#include "grpc.grpc.pb.h"
-#include "grpc.pb.h"
 #include "omptarget.h"
 #include "rtl.h"
+#include "ucx.grpc.pb.h"
+#include "ucx.pb.h"
 
 using grpc::ServerContext;
 using grpc::ServerReader;
 using grpc::ServerWriter;
 using grpc::Status;
 
-using namespace openmp::libomptarget::grpc;
+using openmp::libomptarget::RemoteOffload;
 using namespace google;
 
 extern PluginManager *PM;
 
-namespace transport {
-namespace grpc {
+namespace transport::grpc {
 
 class RemoteOffloadImpl final : public RemoteOffload::Service {
 private:
@@ -41,7 +40,7 @@ private:
 
   std::unordered_map<const void *, __tgt_device_image *>
       HostToRemoteDeviceImage;
-  std::unordered_map<const void *, std::unique_ptr<__tgt_bin_desc>>
+  std::unordered_map<const void *, __tgt_bin_desc*>
       Descriptions;
   __tgt_target_table *Table = nullptr;
 
@@ -66,7 +65,7 @@ public:
                        I32 *Reply) override;
 
   Status IsValidBinary(ServerContext *Context,
-                       const TargetDeviceImagePtr *Image,
+                       const Pointer *Image,
                        I32 *IsValid) override;
   Status GetNumberOfDevices(ServerContext *Context, const Null *Null,
                             I32 *NumberOfDevices) override;
@@ -84,10 +83,10 @@ public:
   Status DataAlloc(ServerContext *Context, const AllocData *Request,
                    Pointer *Reply) override;
 
-  Status DataSubmit(ServerContext *Context, ServerReader<SubmitData> *Reader,
+  Status DataSubmit(ServerContext *Context, ServerReader<SSubmitData> *Reader,
                     I32 *Reply) override;
   Status DataRetrieve(ServerContext *Context, const RetrieveData *Request,
-                      ServerWriter<Data> *Writer) override;
+                      ServerWriter<SData> *Writer) override;
 
   Status DataExchange(ServerContext *Context, const ExchangeData *Request,
                       I32 *Reply) override;
@@ -103,7 +102,6 @@ public:
                              I32 *Reply) override;
 };
 
-} // namespace grpc
-} // namespace transport
+} // namespace transport::grpc
 
 #endif

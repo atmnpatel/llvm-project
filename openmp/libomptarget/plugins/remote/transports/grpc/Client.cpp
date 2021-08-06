@@ -13,7 +13,7 @@
 #include <cmath>
 
 #include "Client.h"
-#include "grpc.pb.h"
+#include "ucx.pb.h"
 #include "omptarget.h"
 
 using namespace std::chrono;
@@ -106,14 +106,10 @@ int32_t ClientTy::isValidBinary(__tgt_device_image *Image) {
       /* Preprocessor */
       [&](auto &RPCStatus, auto &Context) {
         auto *Request =
-            protobuf::Arena::CreateMessage<TargetDeviceImagePtr>(Arena.get());
+            protobuf::Arena::CreateMessage<Pointer>(Arena.get());
         auto *Reply = protobuf::Arena::CreateMessage<I32>(Arena.get());
 
-        Request->set_image_ptr((uint64_t)Image->ImageStart);
-
-        auto *EntryItr = Image->EntriesBegin;
-        while (EntryItr != Image->EntriesEnd)
-          Request->add_entry_ptrs((uint64_t)EntryItr++);
+        Request->set_number((uint64_t)Image);
 
         RPCStatus = Stub->IsValidBinary(&Context, *Request, Reply);
         return Reply;
@@ -208,7 +204,7 @@ __tgt_target_table *ClientTy::loadBinary(int32_t DeviceId,
         auto *ImageMessage =
             protobuf::Arena::CreateMessage<Binary>(Arena.get());
         auto *Reply = protobuf::Arena::CreateMessage<TargetTable>(Arena.get());
-        ImageMessage->set_image_ptr((uint64_t)Image->ImageStart);
+        ImageMessage->set_image_ptr((uint64_t)Image);
         ImageMessage->set_device_id(DeviceId);
 
         RPCStatus = Stub->LoadBinary(&Context, *ImageMessage, Reply);
@@ -293,21 +289,20 @@ int32_t ClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
       /* Preprocessor */
       [&](auto &RPCStatus, auto &Context) {
         auto *Reply = protobuf::Arena::CreateMessage<I32>(Arena.get());
-        std::unique_ptr<ClientWriter<SubmitData>> Writer(
+        std::unique_ptr<ClientWriter<SSubmitData>> Writer(
             Stub->DataSubmit(&Context, Reply));
 
         if (Size > BlockSize) {
-          int64_t Start = 0, End = BlockSize;
+          uint64_t Start = 0, End = BlockSize;
           for (auto I = 0; I < ceil((float)Size / BlockSize); I++) {
             auto *Request =
-                protobuf::Arena::CreateMessage<SubmitData>(Arena.get());
+                protobuf::Arena::CreateMessage<SSubmitData>(Arena.get());
 
             Request->set_device_id(DeviceId);
             Request->set_data((char *)HstPtr + Start, End - Start);
-            Request->set_hst_ptr((uint64_t)HstPtr);
             Request->set_tgt_ptr((uint64_t)TgtPtr);
             Request->set_start(Start);
-            Request->set_size(Size);
+            Request->set_size(End-Start);
 
             if (!Writer->Write(*Request)) {
               CLIENT_DBG("Broken stream when submitting data")
@@ -322,11 +317,10 @@ int32_t ClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
           }
         } else {
           auto *Request =
-              protobuf::Arena::CreateMessage<SubmitData>(Arena.get());
+              protobuf::Arena::CreateMessage<SSubmitData>(Arena.get());
 
           Request->set_device_id(DeviceId);
           Request->set_data(HstPtr, Size);
-          Request->set_hst_ptr((uint64_t)HstPtr);
           Request->set_tgt_ptr((uint64_t)TgtPtr);
           Request->set_start(0);
           Request->set_size(Size);
@@ -368,11 +362,10 @@ int32_t ClientTy::dataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
 
         Request->set_device_id(DeviceId);
         Request->set_size(Size);
-        Request->set_hst_ptr((int64_t)HstPtr);
         Request->set_tgt_ptr((int64_t)TgtPtr);
 
-        auto *Reply = protobuf::Arena::CreateMessage<Data>(Arena.get());
-        std::unique_ptr<ClientReader<Data>> Reader(
+        auto *Reply = protobuf::Arena::CreateMessage<SData>(Arena.get());
+        std::unique_ptr<ClientReader<SData>> Reader(
             Stub->DataRetrieve(&Context, *Request));
         Reader->WaitForInitialMetadata();
         while (Reader->Read(Reply)) {
@@ -493,8 +486,6 @@ int32_t ClientTy::runTargetRegion(int32_t DeviceId, void *TgtEntryPtr,
         for (auto I = 0; I < ArgNum; I++, OffsetPtr++)
           Request->add_tgt_offsets((uint64_t)*OffsetPtr);
 
-        Request->set_arg_num(ArgNum);
-
         RPCStatus = Stub->RunTargetRegion(&Context, *Request, Reply);
         return Reply;
       },
@@ -537,7 +528,6 @@ int32_t ClientTy::runTargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
         for (auto I = 0; I < ArgNum; I++, OffsetPtr++)
           Request->add_tgt_offsets((uint64_t)*OffsetPtr);
 
-        Request->set_arg_num(ArgNum);
         Request->set_team_num(TeamNum);
         Request->set_thread_limit(ThreadLimit);
         Request->set_loop_tripcount(LoopTripcount);

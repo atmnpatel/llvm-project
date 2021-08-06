@@ -13,8 +13,6 @@
 #define DEBUG_PREFIX "TARGET " GETNAME(TARGET_NAME) " RTL"
 #endif
 
-using namespace openmp::libomptarget::ucx;
-
 namespace transport::ucx {
 
 struct ServerContextTy {

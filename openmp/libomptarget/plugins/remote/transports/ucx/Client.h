@@ -15,7 +15,7 @@ namespace transport::ucx {
 class ClientTy : public Base, public BaseClientTy {
 protected:
   ConnectionConfigTy Config;
-  std::map<std::thread::id, int32_t> InterfaceId;
+  std::map<std::thread::id, size_t> InterfaceId;
   std::vector<std::unique_ptr<Base::InterfaceTy>> Interfaces;
 
   size_t getInterfaceIdx() {

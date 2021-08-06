@@ -31,6 +31,7 @@ add_llvm_executable(openmp-offloading-server
         ${TRANSPORTS_DIR}/ucx/Serialization.cpp
         ${TRANSPORTS_DIR}/ucx/Utils.cpp
         ${GRPC_SRC_FILES}
+        ../src/Utils.cpp
         )
 
 llvm_update_compile_flags(openmp-offloading-server)

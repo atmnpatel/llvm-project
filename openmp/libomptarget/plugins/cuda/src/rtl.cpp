@@ -1019,16 +1019,6 @@ public:
     if (!checkResult(Err, "Error returned from cuCtxSetCurrent\n"))
       return OFFLOAD_FAIL;
   
-    printf("Device: %d, Executing %p with %d teams, %d threads, %lu loops\n",
-           DeviceId, TgtEntryPtr, TeamNum,
-           ThreadLimit, LoopTripCount);
-    printf("TgtArgs: \n");
-    auto *Offset = TgtOffsets;
-    for (auto *Arg = TgtArgs; Arg != TgtArgs+ ArgNum;
-         Arg++, Offset++) {
-      printf(" Arg: %p + %p\n", Arg, Offset);
-    }
-
     // All args are references.
     std::vector<void *> Args(ArgNum);
     std::vector<void *> Ptrs(ArgNum);
@@ -1392,8 +1382,6 @@ void *__tgt_rtl_data_alloc(int32_t device_id, int64_t size, void *,
 
   void * Ptr = DeviceRTL.dataAlloc(device_id, size, (TargetAllocTy)kind);
 
-  printf("Allocated %ld bytes at %p on device %d\n", size,
-         (void *)Ptr, device_id);
   return Ptr;
 }
 

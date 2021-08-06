@@ -13,23 +13,13 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include "BaseUtils.h"
 #include "Debug.h"
-#include "grpc.grpc.pb.h"
-#include "grpc.pb.h"
 #include "omptarget.h"
 #include "rtl.h"
 #include <string>
-#include "BaseUtils.h"
 
-namespace transport {
-namespace grpc {
-
-using namespace openmp::libomptarget::grpc;
-
-using openmp::libomptarget::grpc::DeviceOffloadEntry;
-using openmp::libomptarget::grpc::TargetBinaryDescription;
-using openmp::libomptarget::grpc::TargetOffloadEntry;
-using openmp::libomptarget::grpc::TargetTable;
+namespace transport::grpc {
 
 struct ClientManagerConfigTy {
   std::vector<std::string> ServerAddresses;
@@ -39,7 +29,7 @@ struct ClientManagerConfigTy {
 
   ClientManagerConfigTy()
       : ServerAddresses({"0.0.0.0:50051"}), MaxSize(1 << 30),
-        BlockSize(1 << 20), Timeout(5) {
+        BlockSize(UINT64_MAX), Timeout(5) {
     // TODO: Error handle for incorrect inputs
     if (const char *Env = std::getenv("LIBOMPTARGET_RPC_ADDRESS")) {
       ServerAddresses.clear();
@@ -64,55 +54,11 @@ struct ClientManagerConfigTy {
   }
 };
 
-/// Loads a target binary description into protobuf.
-void loadTargetBinaryDescription(const __tgt_bin_desc *Desc,
-                                 TargetBinaryDescription &Request);
-
-/// Unload a target binary description from protobuf. The map is used to keep
-/// track of already copied device images.
-void unloadTargetBinaryDescription(
-    const TargetBinaryDescription *Request, __tgt_bin_desc *Desc,
-    std::unordered_map<const void *, __tgt_device_image *>
-        &HostToRemoteDeviceImage);
-
-/// Frees argument as constructed by loadTargetBinaryDescription
-void freeTargetBinaryDescription(__tgt_bin_desc *Desc);
-
-/// Copies from TargetOffloadEntry protobuf to a tgt_bin_desc during unloading.
-void copyOffloadEntry(const TargetOffloadEntry &EntryResponse,
-                      __tgt_offload_entry *Entry);
-
-/// Copies from tgt_bin_desc into TargetOffloadEntry protobuf during loading.
-void copyOffloadEntry(const __tgt_offload_entry *Entry,
-                      TargetOffloadEntry *EntryResponse);
-
-/// Shallow copy of offload entry from tgt_bin_desc to TargetOffloadEntry
-/// during loading.
-void shallowCopyOffloadEntry(const __tgt_offload_entry *Entry,
-                             TargetOffloadEntry *EntryResponse);
-
-/// Copies DeviceOffloadEntries into table during unloading.
-void copyOffloadEntry(const DeviceOffloadEntry &EntryResponse,
-                      __tgt_offload_entry *Entry);
-
-/// Loads tgt_target_table into a TargetTable protobuf message.
-void loadTargetTable(__tgt_target_table *Table, TargetTable &TableResponse,
-                     __tgt_device_image *Image);
-
-/// Unloads from a target_table from protobuf.
-void unloadTargetTable(
-    TargetTable &TableResponse, __tgt_target_table *Table,
-    std::unordered_map<void *, void *> &HostToRemoteTargetTableMap);
-
-/// Frees argument as constructed by unloadTargetTable
-void freeTargetTable(__tgt_target_table *Table);
-
 void dump(const void *Start, const void *End);
 void dump(__tgt_offload_entry *Entry);
 void dump(TargetOffloadEntry Entry);
 void dump(__tgt_target_table *Table);
 void dump(__tgt_device_image *Image);
-} // namespace grpc
-} // namespace transport
+} // namespace transport::grpc
 
 #endif

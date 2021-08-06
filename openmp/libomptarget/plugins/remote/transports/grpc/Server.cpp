@@ -13,30 +13,27 @@
 #include <cmath>
 
 #include "Server.h"
-#include "grpc.grpc.pb.h"
-#include "grpc.pb.h"
 #include "omptarget.h"
 
 using grpc::WriteOptions;
 
-namespace transport {
-namespace grpc {
+namespace transport::grpc {
 
 Status
 RemoteOffloadImpl::RegisterLib(ServerContext *Context,
                                const TargetBinaryDescription *Description,
                                I32 *Reply) {
-  auto Desc = std::make_unique<__tgt_bin_desc>();
+  auto Desc = new __tgt_bin_desc;
 
-  unloadTargetBinaryDescription(Description, Desc.get(),
+  unloadTargetBinaryDescription(Description, Desc,
                                 HostToRemoteDeviceImage);
-  PM->RTLs.RegisterLib(Desc.get());
+  PM->RTLs.RegisterLib(Desc);
 
   if (Descriptions.find((void *)Description->bin_ptr()) != Descriptions.end())
     freeTargetBinaryDescription(
-        Descriptions[(void *)Description->bin_ptr()].get());
+        Descriptions[(void *)Description->bin_ptr()]);
   else
-    Descriptions[(void *)Description->bin_ptr()] = std::move(Desc);
+    Descriptions[(void *)Description->bin_ptr()] = Desc;
 
   SERVER_DBG("Registered library")
   Reply->set_number(0);
@@ -50,8 +47,8 @@ Status RemoteOffloadImpl::UnregisterLib(ServerContext *Context,
     return Status::OK;
   }
 
-  PM->RTLs.UnregisterLib(Descriptions[(void *)Request->number()].get());
-  freeTargetBinaryDescription(Descriptions[(void *)Request->number()].get());
+  PM->RTLs.UnregisterLib(Descriptions[(void *)Request->number()]);
+  freeTargetBinaryDescription(Descriptions[(void *)Request->number()]);
   Descriptions.erase((void *)Request->number());
 
   SERVER_DBG("Unregistered library")
@@ -60,10 +57,10 @@ Status RemoteOffloadImpl::UnregisterLib(ServerContext *Context,
 }
 
 Status RemoteOffloadImpl::IsValidBinary(ServerContext *Context,
-                                        const TargetDeviceImagePtr *DeviceImage,
+                                        const Pointer *DeviceImage,
                                         I32 *IsValid) {
   __tgt_device_image *Image =
-      HostToRemoteDeviceImage[(void *)DeviceImage->image_ptr()];
+      HostToRemoteDeviceImage[(void *)DeviceImage->number()];
 
   IsValid->set_number(0);
 
@@ -74,7 +71,7 @@ Status RemoteOffloadImpl::IsValidBinary(ServerContext *Context,
     }
 
   SERVER_DBG("Checked if binary (%p) is valid",
-             (void *)(DeviceImage->image_ptr()))
+             (void *)(DeviceImage->number()))
   return Status::OK;
 }
 
@@ -154,16 +151,16 @@ Status RemoteOffloadImpl::DataAlloc(ServerContext *Context,
 
   SERVER_DBG("Allocated at " DPxMOD "", DPxPTR((void *)TgtPtr))
 
-  printf("Server: Allocated %ld bytes at %p on device %d\n", Request->size(),
-         (void *)TgtPtr, Request->device_id());
+//  printf("Server: Allocated %ld bytes at %p on device %d\n", Request->size(),
+//         (void *)TgtPtr, Request->device_id());
 
   return Status::OK;
 }
 
 Status RemoteOffloadImpl::DataSubmit(ServerContext *Context,
-                                     ServerReader<SubmitData> *Reader,
+                                     ServerReader<SSubmitData> *Reader,
                                      I32 *Reply) {
-  SubmitData Request;
+  SSubmitData Request;
   uint8_t *HostCopy = nullptr;
   while (Reader->Read(&Request)) {
     if (Request.start() == 0 && Request.size() == Request.data().size()) {
@@ -202,7 +199,7 @@ Status RemoteOffloadImpl::DataSubmit(ServerContext *Context,
 
 Status RemoteOffloadImpl::DataRetrieve(ServerContext *Context,
                                        const RetrieveData *Request,
-                                       ServerWriter<Data> *Writer) {
+                                       ServerWriter<SData> *Writer) {
   auto HstPtr = std::make_unique<char[]>(Request->size());
 
   auto Ret = PM->Devices[Request->device_id()].RTL->data_retrieve(
@@ -215,7 +212,7 @@ Status RemoteOffloadImpl::DataRetrieve(ServerContext *Context,
   if (Request->size() > BlockSize) {
     uint64_t Start = 0, End = BlockSize;
     for (auto I = 0; I < ceil((float)Request->size() / BlockSize); I++) {
-      auto *Reply = protobuf::Arena::CreateMessage<Data>(Arena.get());
+      auto *Reply = protobuf::Arena::CreateMessage<SData>(Arena.get());
 
       Reply->set_start(Start);
       Reply->set_size(Request->size());
@@ -236,7 +233,7 @@ Status RemoteOffloadImpl::DataRetrieve(ServerContext *Context,
         End = Request->size();
     }
   } else {
-    auto *Reply = protobuf::Arena::CreateMessage<Data>(Arena.get());
+    auto *Reply = protobuf::Arena::CreateMessage<SData>(Arena.get());
 
     Reply->set_start(0);
     Reply->set_size(Request->size());
@@ -288,17 +285,18 @@ Status RemoteOffloadImpl::DataDelete(ServerContext *Context,
 Status RemoteOffloadImpl::RunTargetRegion(ServerContext *Context,
                                           const TargetRegion *Request,
                                           I32 *Reply) {
-  std::vector<uint8_t> TgtArgs(Request->arg_num());
-  for (auto I = 0; I < Request->arg_num(); I++)
+  std::vector<uint8_t> TgtArgs(Request->tgt_args_size());
+  for (auto I = 0; I < Request->tgt_args_size(); I++)
     TgtArgs[I] = (uint64_t)Request->tgt_args()[I];
 
-  std::vector<ptrdiff_t> TgtOffsets(Request->arg_num());
+  std::vector<ptrdiff_t> TgtOffsets(Request->tgt_args_size());
   const auto *TgtOffsetItr = Request->tgt_offsets().begin();
-  for (auto I = 0; I < Request->arg_num(); I++, TgtOffsetItr++)
+  for (auto I = 0; I < Request->tgt_args_size(); I++, TgtOffsetItr++)
     TgtOffsets[I] = (ptrdiff_t)*TgtOffsetItr;
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request->tgt_entry_ptr())->addr;
 
+  /*
   printf("Server: Device: %d, Executing %p\n", Request->device_id(),
          TgtEntryPtr);
   printf("TgtArgs: \n");
@@ -308,31 +306,34 @@ Status RemoteOffloadImpl::RunTargetRegion(ServerContext *Context,
        Arg++, Offset++) {
     printf(" Arg: %p + %p\n", Arg, Offset);
   }
+   */
+
   int32_t Ret = PM->Devices[Request->device_id()].RTL->run_region(
       mapHostRTLDeviceId(Request->device_id()), TgtEntryPtr,
-      (void **)TgtArgs.data(), TgtOffsets.data(), Request->arg_num());
+      (void **)TgtArgs.data(), TgtOffsets.data(), Request->tgt_args_size());
 
   Reply->set_number(Ret);
 
   SERVER_DBG("Ran TargetRegion on device %d with %d args",
-             mapHostRTLDeviceId(Request->device_id()), Request->arg_num())
+             mapHostRTLDeviceId(Request->device_id()), Request->tgt_args_size())
   return Status::OK;
 }
 
 Status RemoteOffloadImpl::RunTargetTeamRegion(ServerContext *Context,
                                               const TargetTeamRegion *Request,
                                               I32 *Reply) {
-  std::vector<uint64_t> TgtArgs(Request->arg_num());
-  for (auto I = 0; I < Request->arg_num(); I++)
+  std::vector<uint64_t> TgtArgs(Request->tgt_args_size());
+  for (auto I = 0; I < Request->tgt_args_size(); I++)
     TgtArgs[I] = (uint64_t)Request->tgt_args()[I];
 
-  std::vector<ptrdiff_t> TgtOffsets(Request->arg_num());
+  std::vector<ptrdiff_t> TgtOffsets(Request->tgt_args_size());
   const auto *TgtOffsetItr = Request->tgt_offsets().begin();
-  for (auto I = 0; I < Request->arg_num(); I++, TgtOffsetItr++)
+  for (auto I = 0; I < Request->tgt_args_size(); I++, TgtOffsetItr++)
     TgtOffsets[I] = (ptrdiff_t)*TgtOffsetItr;
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request->tgt_entry_ptr())->addr;
 
+  /*
   printf(
       "Server: Device: %d, Executing %p with %d teams, %d threads, %lu loops\n",
       Request->device_id(), TgtEntryPtr, Request->team_num(),
@@ -344,16 +345,17 @@ Status RemoteOffloadImpl::RunTargetTeamRegion(ServerContext *Context,
        Arg++, Offset++) {
     printf(" Arg: %p + %p\n", Arg, Offset);
   }
+   */
 
   int32_t Ret = PM->Devices[Request->device_id()].RTL->run_team_region(
       mapHostRTLDeviceId(Request->device_id()), TgtEntryPtr,
-      (void **)TgtArgs.data(), TgtOffsets.data(), Request->arg_num(),
+      (void **)TgtArgs.data(), TgtOffsets.data(), Request->tgt_args_size(),
       Request->team_num(), Request->thread_limit(), Request->loop_tripcount());
 
   Reply->set_number(Ret);
 
   SERVER_DBG("Ran TargetTeamRegion on device %d with %d args",
-             mapHostRTLDeviceId(Request->device_id()), Request->arg_num())
+             mapHostRTLDeviceId(Request->device_id()), Request->tgt_args_size())
   return Status::OK;
 }
 
@@ -366,5 +368,4 @@ int32_t RemoteOffloadImpl::mapHostRTLDeviceId(int32_t RTLDeviceID) {
   }
   return RTLDeviceID;
 }
-} // namespace grpc
-} // namespace transport
+} // namespace transport::grpc

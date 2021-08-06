@@ -217,7 +217,6 @@ int32_t ProtobufClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr,
   SubmitData Request;
   Request.set_device_id(DeviceId);
   Request.set_data((char *)HstPtr, Size);
-  Request.set_hst_ptr((uint64_t)HstPtr);
   Request.set_tgt_ptr((uint64_t)TgtPtr);
   auto InterfaceIdx = getInterfaceIdx();
 

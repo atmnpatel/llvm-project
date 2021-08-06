@@ -26,8 +26,6 @@
 
 namespace transport::ucx {
 
-using namespace openmp::libomptarget::ucx;
-
 enum MessageKind : char {
   RegisterLib,
   UnregisterLib,
@@ -79,7 +77,7 @@ protected:
 public:
   MessageTy(bool Empty = false);
   MessageTy(size_t Size);
-  MessageTy(char * MessageBuffer);
+  MessageTy(char *MessageBuffer);
   virtual ~MessageTy() = default;
   std::pair<char *, size_t> getBuffer();
 };
@@ -107,7 +105,7 @@ struct Pointer : public MessageTy {
 
 struct TargetBinaryDescription : public MessageTy {
   explicit TargetBinaryDescription(__tgt_bin_desc *TBD);
-  TargetBinaryDescription(std::string &MessageBuffer, __tgt_bin_desc * TBD,
+  TargetBinaryDescription(std::string &MessageBuffer, __tgt_bin_desc *TBD,
                           std::unordered_map<const void *, __tgt_device_image *>
                               &HostToRemoteDeviceImage);
 };
@@ -199,49 +197,5 @@ struct TargetTeamRegion : public MessageTy {
   TargetTeamRegion(std::string MessageBuffer);
 };
 } // namespace custom
-
-/// Unload a target binary description from protobuf. The map is used to keep
-/// track of already copied device images.
-void unloadTargetBinaryDescription(
-    const openmp::libomptarget::ucx::TargetBinaryDescription *Request,
-    __tgt_bin_desc *&Desc,
-    std::unordered_map<const void *, __tgt_device_image *>
-        &HostToRemoteDeviceImage);
-
-/// Loads tgt_target_table into a TargetTable protobuf message.
-void loadTargetTable(__tgt_target_table *Table,
-                     openmp::libomptarget::ucx::TargetTable &TableResponse,
-                     __tgt_device_image *Image);
-
-/// Copies from TargetOffloadEntry protobuf to a tgt_bin_desc during unloading.
-void copyOffloadEntry(
-    const openmp::libomptarget::ucx::TargetOffloadEntry &EntryResponse,
-    __tgt_offload_entry *Entry);
-
-/// Copies from tgt_bin_desc into TargetOffloadEntry protobuf during loading.
-void copyOffloadEntry(
-    const __tgt_offload_entry *Entry,
-    openmp::libomptarget::ucx::TargetOffloadEntry *EntryResponse);
-
-/// Shallow copy of offload entry from tgt_bin_desc to TargetOffloadEntry
-/// during loading.
-void shallowCopyOffloadEntry(
-    const __tgt_offload_entry *Entry,
-    openmp::libomptarget::ucx::TargetOffloadEntry *EntryResponse);
-
-/// Copies DeviceOffloadEntries into table during unloading.
-void copyOffloadEntry(const transport::ucx::DeviceOffloadEntry &EntryResponse,
-                      __tgt_offload_entry *Entry);
-
-/// Loads a target binary description into protobuf.
-void loadTargetBinaryDescription(
-    const __tgt_bin_desc *Desc,
-    openmp::libomptarget::ucx::TargetBinaryDescription &Request);
-
-/// Unloads from a target_table from protobuf.
-void unloadTargetTable(
-    openmp::libomptarget::ucx::TargetTable &TableResponse,
-    __tgt_target_table *Table,
-    std::unordered_map<void *, void *> &HostToRemoteTargetTableMap);
 
 } // namespace transport::ucx

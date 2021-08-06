@@ -87,24 +87,5 @@ void dump(const char *Begin, const char *End, const std::string &Title) {
     dump(offset, (char *)Begin + offset, std::min(Begin + offset + 16, End));
 }
 
-void dump(__tgt_offload_entry *Entry) {
-  printf("  Entry (%s): %p [%ld], %d, %d\n", Entry->name, Entry->addr, Entry->size, Entry->flags, Entry->reserved);
-}
-
-void dump(__tgt_bin_desc *Desc) {
-  printf("Global Entries:\n");
-  for (auto *Entry = Desc->HostEntriesBegin; Entry != Desc->HostEntriesEnd; Entry++) {
-    dump(Entry);
-  }
-
-  printf("Images: %d\n", Desc->NumDeviceImages);
-  auto *Image = Desc->DeviceImages;
-  for (auto Idx = 0; Idx < Desc->NumDeviceImages; Idx++, Image++) {
-    printf("Image %d: [%ld]\n", Idx, (char *) Image->ImageEnd - (char *) Image->ImageStart);
-    for (auto *Entry = Image->EntriesBegin; Entry != Image->EntriesEnd; Entry++) {
-      dump(Entry);
-    }
-  }
-}
 
 } // namespace transport::ucx

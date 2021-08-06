@@ -9,14 +9,14 @@
 #
 ##===----------------------------------------------------------------------===#
 
-if (NOT(CMAKE_SYSTEM_NAME MATCHES "Linux"))
-  libomptarget_say("Not building remote offloading plugin: only support Linux hosts.")
-  return()
-endif()
+if (NOT (CMAKE_SYSTEM_NAME MATCHES "Linux"))
+    libomptarget_say("Not building remote offloading plugin: only support Linux hosts.")
+    return()
+endif ()
 
-if (NOT(LIBOMPTARGET_ENABLE_EXPERIMENTAL_REMOTE_PLUGIN))
-  return()
-endif()
+if (NOT (LIBOMPTARGET_ENABLE_EXPERIMENTAL_REMOTE_PLUGIN))
+    return()
+endif ()
 
 find_package(Protobuf)
 find_package(gRPC CONFIG)
@@ -24,37 +24,36 @@ find_package(gRPC CONFIG)
 find_program(PROTOC protoc)
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
 
+set(SERIALIZATION_DIR ${CMAKE_CURRENT_SOURCE_DIR}/serialization/protobuf)
 set(TRANSPORTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/transports/)
 
 set(CMAKE_CXX_STANDARD 20)
 
 if (Protobuf_FOUND AND gRPC_FOUND AND PROTOC AND GRPC_CPP_PLUGIN)
-  libomptarget_say("Building remote offloading plugin.")
-  set(directory "${CMAKE_BINARY_DIR}/include/openmp/libomptarget/plugins/remote/")
-  file(MAKE_DIRECTORY ${directory})
-  execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${directory})
-  execute_process(
-          COMMAND protoc --cpp_out=${directory} -I ${TRANSPORTS_DIR}/grpc/ ${TRANSPORTS_DIR}/grpc/grpc.proto
-          COMMAND protoc --grpc_out=${directory} -I ${TRANSPORTS_DIR}/grpc/ ${TRANSPORTS_DIR}/grpc/grpc.proto --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
-          COMMAND protoc --cpp_out=${directory} -I ${TRANSPORTS_DIR}/ucx/ ${TRANSPORTS_DIR}/ucx/ucx.proto
-  )
+    libomptarget_say("Building remote offloading plugin.")
+    set(directory "${CMAKE_BINARY_DIR}/include/openmp/libomptarget/plugins/remote/")
+    file(MAKE_DIRECTORY ${directory})
+    execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${directory})
+    execute_process(
+            COMMAND protoc --cpp_out=${directory} -I ${SERIALIZATION_DIR} ${SERIALIZATION_DIR}/ucx.proto
+            COMMAND protoc --grpc_out=${directory} -I ${SERIALIZATION_DIR} ${SERIALIZATION_DIR}/ucx.proto --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
+    )
 
-  set(GRPC_SRC_FILES
-      ${directory}/grpc.grpc.pb.cc
-      ${directory}/grpc.pb.cc
-      ${directory}/ucx.pb.cc
-  )
+    set(GRPC_SRC_FILES
+            ${directory}/ucx.pb.cc
+            ${directory}/ucx.grpc.pb.cc
+            )
 
-  set(GRPC_INCLUDE_DIR
-      ${directory}
-  )
+    set(GRPC_INCLUDE_DIR
+            ${directory}
+            )
 
-  set(RPC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/)
-  set(RPC_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/)
-  
-  add_subdirectory(src)
-  add_subdirectory(server)
-else()
-  libomptarget_say("Not building remote offloading plugin: required libraries were not found.")
-endif()
+    set(RPC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/)
+    set(RPC_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/)
+
+    add_subdirectory(src)
+    add_subdirectory(server)
+else ()
+    libomptarget_say("Not building remote offloading plugin: required libraries were not found.")
+endif ()
 

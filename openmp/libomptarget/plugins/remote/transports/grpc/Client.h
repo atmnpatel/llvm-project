@@ -22,11 +22,13 @@
 #include <memory>
 #include <mutex>
 #include <numeric>
+#include <ucx.grpc.pb.h>
 
 #include "../../src/BaseClient.h"
 
 using grpc::Channel;
-using openmp::libomptarget::grpc::RemoteOffload;
+using openmp::libomptarget::RemoteOffload;
+using namespace openmp::libomptarget;
 
 using namespace google;
 
@@ -34,7 +36,7 @@ namespace transport::grpc {
 class ClientTy final : public BaseClientTy {
   const int Timeout;
   const uint64_t MaxSize;
-  const int64_t BlockSize;
+  const uint64_t BlockSize;
 
   std::unique_ptr<RemoteOffload::Stub> Stub;
   std::unique_ptr<protobuf::Arena> Arena;
