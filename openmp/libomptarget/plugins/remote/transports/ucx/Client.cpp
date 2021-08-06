@@ -444,9 +444,6 @@ void *CustomClientTy::dataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr) {
 
   custom::Pointer Response(Interfaces[InterfaceIdx]->receive().second);
 
-  printf("Allocated %ld bytes at %p on device %d\n", Size,
-         (void *)Response.Value, DeviceId);
-
   return Response.Value;
 }
 

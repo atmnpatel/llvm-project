@@ -38,6 +38,7 @@ protected:
   std::vector<std::thread> Threads;
 
   int32_t Devices = 0;
+  std::atomic<bool> Running;
 
 public:
   ServerTy();

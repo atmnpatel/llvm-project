@@ -67,6 +67,7 @@ public:
   std::pair<MessageKind, std::string> receive(uint64_t Tag);
 
   std::mutex ProgressMtx;
+  std::atomic<bool> Running;
 
   operator ucp_worker_h() const { return Worker; }
 };

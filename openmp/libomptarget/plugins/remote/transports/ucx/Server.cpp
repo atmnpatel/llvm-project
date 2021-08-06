@@ -191,8 +191,8 @@ void ProtobufServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
   Pointer Response;
   Response.set_number(TgtPtr);
 
-//  printf("Server: Allocated %ld bytes at %p on device %d\n", Request.size(),
-//         (void *)TgtPtr, Request.device_id());
+  //  printf("Server: Allocated %ld bytes at %p on device %d\n", Request.size(),
+  //         (void *)TgtPtr, Request.device_id());
 
   Interfaces[InterfaceIdx]->send(Count, Response.SerializeAsString(), true);
 
@@ -300,14 +300,14 @@ void ProtobufServerTy::runTargetTeamRegion(size_t InterfaceIdx,
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request.tgt_entry_ptr())->addr;
 
   /*
-  printf("Server: Device: %d, Executing %p with %d teams, %d threads, %lu loops\n",
-         Request.device_id(), TgtEntryPtr, Request.team_num(),
+  printf("Server: Device: %d, Executing %p with %d teams, %d threads, %lu
+  loops\n", Request.device_id(), TgtEntryPtr, Request.team_num(),
          Request.thread_limit(), Request.loop_tripcount());
   printf("TgtArgs: \n");
   auto *Offset = Request.tgt_offsets().data();
-  for (auto *Arg = Request.tgt_args().data(); Arg != Request.tgt_args().data() + Request.tgt_args_size();
-       Arg++, Offset++) {
-    printf(" Arg: %p + %p\n", Arg, Offset);
+  for (auto *Arg = Request.tgt_args().data(); Arg != Request.tgt_args().data() +
+  Request.tgt_args_size(); Arg++, Offset++) { printf(" Arg: %p + %p\n", Arg,
+  Offset);
   }
    */
 
@@ -338,13 +338,14 @@ void ProtobufServerTy::unregisterLib(size_t InterfaceIdx,
 }
 
 void ServerTy::listenForConnections(const ConnectionConfigTy &Config) {
+  Running = true;
   ServerContextTy Ctx;
   ListenerTy Listener((ucp_worker_h)ConnectionWorker, &Ctx, Config);
 
   Listener.query(); // For Info only
 
-  while (true) {
-    while (Ctx.ConnRequests.empty()) {
+  while (Running) {
+    while (Ctx.ConnRequests.empty() && Running) {
       ucp_worker_progress((ucp_worker_h)ConnectionWorker);
     }
 
@@ -359,10 +360,13 @@ void ServerTy::listenForConnections(const ConnectionConfigTy &Config) {
 }
 
 void ServerTy::run(size_t InterfaceIdx) {
-  while (true) {
+  while (Running) {
     auto [Type, Message] = Interfaces[InterfaceIdx]->receive();
     SERVER_DBG("Interface: %ld - Type: %s\n", InterfaceIdx,
                MessageKindToString[Type].c_str());
+
+    if (!Running)
+      return;
 
     switch (Type) {
     case GetNumberOfDevices: {
@@ -415,6 +419,10 @@ void ServerTy::run(size_t InterfaceIdx) {
     }
     case UnregisterLib: {
       unregisterLib(InterfaceIdx, Message);
+      for (auto &Interface : Interfaces) {
+        Interface->Worker.Running = false;
+        Running = false;
+      }
       break;
     }
     default: {
@@ -435,8 +443,6 @@ void CustomServerTy::getNumberOfDevices(size_t InterfaceIdx) {
 void CustomServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
   custom::TargetBinaryDescription Request(Message, TBD,
                                           HostToRemoteDeviceImage);
-
-  dump(TBD);
 
   PM->RTLs.RegisterLib(TBD);
 
@@ -504,8 +510,9 @@ void CustomServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
       mapHostRTLDeviceId(Request.DeviceId), Request.AllocSize,
       (void *)Request.HstPtr, TARGET_ALLOC_DEFAULT);
 
-//  printf("Server: Allocated %ld bytes at %p on device %d\n", Request.AllocSize,
-//         (void *)TgtPtr, Request.DeviceId);
+  //  printf("Server: Allocated %ld bytes at %p on device %d\n",
+  //  Request.AllocSize,
+  //         (void *)TgtPtr, Request.DeviceId);
 
   custom::Pointer Response((uintptr_t)TgtPtr);
   Interfaces[InterfaceIdx]->send(DataAlloc, Response.getBuffer(), true);
@@ -552,8 +559,8 @@ void CustomServerTy::runTargetTeamRegion(size_t InterfaceIdx,
   custom::TargetTeamRegion Request(Message);
 
   /*
-  printf("Server: Device: %d, Executing %p with %d teams, %d threads, %lu loops\n",
-         Request.DeviceId, Request.TgtEntryPtr, Request.TeamNum,
+  printf("Server: Device: %d, Executing %p with %d teams, %d threads, %lu
+  loops\n", Request.DeviceId, Request.TgtEntryPtr, Request.TeamNum,
          Request.ThreadLimit, Request.LoopTripCount);
   printf("TgtArgs: \n");
   auto *Offset = Request.TgtOffsets;

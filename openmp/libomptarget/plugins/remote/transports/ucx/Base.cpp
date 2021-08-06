@@ -24,6 +24,7 @@ void WorkerTy::initialize(ucp_context_h *Context) {
     ERR("failed ot ucp_worker_create ({0})", ucs_status_string(Status))
 
   Initialized = true;
+  Running = true;
 }
 
 void WorkerTy::wait(RequestStatus *Request) {
@@ -84,7 +85,7 @@ std::pair<MessageKind, std::string> WorkerTy::receive(const uint64_t Tag) {
   ucs_status_t Status;
   ucp_tag_message_h MsgTag;
 
-  while (true) {
+  while (Running) {
     std::lock_guard Guard(ProgressMtx);
     MsgTag = ucp_tag_probe_nb(Worker, Tag, TAG_MASK, 1, &InfoTag);
     if (MsgTag != nullptr)
@@ -97,6 +98,9 @@ std::pair<MessageKind, std::string> WorkerTy::receive(const uint64_t Tag) {
       ERR("Failed to send message {0}", ucs_status_string(Status))
     }
   }
+
+  if (!Running)
+    return {};
 
   std::string Message;
   Message.resize(InfoTag.length);
