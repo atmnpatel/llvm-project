@@ -170,9 +170,44 @@ void dump(__tgt_bin_desc *Desc) {
   printf("Images: %d\n", Desc->NumDeviceImages);
   auto *Image = Desc->DeviceImages;
   for (auto Idx = 0; Idx < Desc->NumDeviceImages; Idx++, Image++) {
-    printf("Image %d: [%ld]\n", Idx, (char *) Image->ImageEnd - (char *) Image->ImageStart);
+    printf("Image %d\n", Idx);
     for (auto *Entry = Image->EntriesBegin; Entry != Image->EntriesEnd; Entry++) {
       dump(Entry);
     }
+//    dump((char *) Image->ImageStart, (char *) Image->ImageEnd);
   }
+}
+
+void dump(size_t Offset, char *Begin, const char *End) {
+  printf("(dec) %lu:  ", Offset);
+  for (char *Itr = Begin; Itr != End; Itr++) {
+    printf(" %d", *Itr);
+  }
+  printf("\n");
+
+  printf("(hex) %lu:  ", Offset);
+  for (char *Itr = Begin; Itr != End; Itr++) {
+    printf(" %x", *Itr);
+  }
+  printf("\n");
+
+  printf("(asc) %lu:  ", Offset);
+  for (char *Itr = Begin; Itr != End; Itr++) {
+    if (std::isgraph(*Itr)) {
+      printf(" %c", *Itr);
+    } else {
+      printf(" %o", *Itr);
+    }
+  }
+  printf("\n");
+}
+
+void dump(char *Begin, int32_t Size, const std::string &Title) {
+  return dump(Begin, Begin + Size, Title);
+}
+
+void dump(const char *Begin, const char *End, const std::string &Title) {
+  printf("======================= %s =======================\n", Title.c_str());
+  for (size_t offset = 0; offset < End - Begin; offset += 16)
+    dump(offset, (char *)Begin + offset, std::min(Begin + offset + 16, End));
 }

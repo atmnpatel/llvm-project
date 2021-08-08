@@ -38,6 +38,10 @@ llvm_update_compile_flags(openmp-offloading-server)
 
 target_compile_features(openmp-offloading-server PRIVATE cxx_std_20)
 
+target_link_directories(openmp-offloading-server PRIVATE
+        /home/apatel/dev/llvm-project/build/offloading/projects/openmp/libomptarget
+        )
+
 target_link_libraries(openmp-offloading-server PRIVATE
         protobuf
         grpc++
@@ -48,7 +52,8 @@ target_link_libraries(openmp-offloading-server PRIVATE
         "-L /opt/ucx/lib"
         ${OPENMP_PTHREAD_LIB}
         "-fopenmp"
-#        "-ggdb -fno-omit-frame-pointer"
+        #        "-ggdb -fno-omit-frame-pointer"
         "-O3"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
+        "-lomptarget"
         )

@@ -214,11 +214,14 @@ int32_t ProtobufClientTy::dataDelete(int32_t DeviceId, void *TgtPtr) {
 
 int32_t ProtobufClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr,
                                      void *HstPtr, int64_t Size) {
+  //dump((char *) HstPtr, (char *) HstPtr + Size);
   SubmitData Request;
   Request.set_device_id(DeviceId);
   Request.set_data((char *)HstPtr, Size);
   Request.set_tgt_ptr((uint64_t)TgtPtr);
   auto InterfaceIdx = getInterfaceIdx();
+
+  //dump((char *) HstPtr, (char *) HstPtr + Size);
 
   CLIENT_DBG("Submitting %ld bytes async on device %d at %p", Size, DeviceId,
              TgtPtr)
@@ -462,7 +465,9 @@ int32_t CustomClientTy::dataDelete(int32_t DeviceId, void *TgtPtr) {
 int32_t CustomClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                                    int64_t Size) {
   //std::lock_guard Guard(GMtx);
+  //dump((char *) HstPtr, (char *) HstPtr + Size);
   custom::DataSubmit Request(DeviceId, TgtPtr, HstPtr, Size);
+  //dump((char *) HstPtr, (char *) HstPtr + Size);
 
   auto InterfaceIdx = getInterfaceIdx();
   Interfaces[InterfaceIdx]->send(MessageKind::DataSubmit, Request.getBuffer());

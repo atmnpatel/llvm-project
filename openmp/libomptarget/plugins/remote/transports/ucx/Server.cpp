@@ -81,6 +81,8 @@ void ProtobufServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
 
   unloadTargetBinaryDescription(&Description, TBD, HostToRemoteDeviceImage);
 
+  //dump(TBD);
+
   PM->RTLs.RegisterLib(TBD);
 
   I32 Response;
@@ -224,6 +226,9 @@ void ProtobufServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
   SERVER_DBG("Submitting %lu bytes async to (%p) on device %d",
              Request.data().size(), (void *)Request.tgt_ptr(),
              Request.device_id())
+
+  //printf("Submitting\n");
+  //dump(Request.data().c_str(), Request.data().c_str() + Request.data().size());
 
   int32_t Err = PM->Devices[Request.device_id()].RTL->data_submit(
       mapHostRTLDeviceId(Request.device_id()), (void *)Request.tgt_ptr(),
@@ -445,6 +450,8 @@ void CustomServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
   custom::TargetBinaryDescription Request(Message, TBD,
                                           HostToRemoteDeviceImage);
 
+  //dump(TBD);
+
   PM->RTLs.RegisterLib(TBD);
 
   Interfaces[InterfaceIdx]->send(RegisterLib, std::string("0"), true);
@@ -521,6 +528,9 @@ void CustomServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
 
 void CustomServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
   custom::DataSubmit Request(Message);
+
+  //printf("Submitting\n");
+  //dump((char *) Request.HstPtr, (char *) Request.HstPtr + Request.DataSize);
 
   custom::I32 Response(PM->Devices[Request.DeviceId].RTL->data_submit(
       mapHostRTLDeviceId(Request.DeviceId), Request.TgtPtr, Request.HstPtr,

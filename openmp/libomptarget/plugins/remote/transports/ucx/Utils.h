@@ -120,8 +120,4 @@ struct ManagerConfigTy {
 std::string getIP(const sockaddr_storage *SocketAddress);
 std::string getPort(const sockaddr_storage *SocketAddress);
 
-void dump(char *Begin, int32_t Size, const std::string &Title = "");
-void dump(int Offset, char *Begin, char *End);
-void dump(const char *Begin, const char *End, const std::string &Title = "");
-
 } // namespace transport::ucx

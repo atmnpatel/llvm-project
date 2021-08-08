@@ -305,7 +305,7 @@ DataSubmit::DataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                 DataSize) {
   serialize(DeviceId);
   serialize((uintptr_t)TgtPtr);
-  serialize((void *)HstPtr, (void *)((uintptr_t)HstPtr + DataSize));
+  serialize((void *)HstPtr, (void *)((char *)HstPtr + DataSize));
 }
 
 DataSubmit::DataSubmit(std::string MessageBuffer)
