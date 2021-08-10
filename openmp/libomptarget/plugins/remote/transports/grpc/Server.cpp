@@ -285,7 +285,7 @@ Status RemoteOffloadImpl::DataDelete(ServerContext *Context,
 Status RemoteOffloadImpl::RunTargetRegion(ServerContext *Context,
                                           const TargetRegion *Request,
                                           I32 *Reply) {
-  std::vector<uint8_t> TgtArgs(Request->tgt_args_size());
+  std::vector<uint64_t> TgtArgs(Request->tgt_args_size());
   for (auto I = 0; I < Request->tgt_args_size(); I++)
     TgtArgs[I] = (uint64_t)Request->tgt_args()[I];
 

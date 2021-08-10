@@ -352,7 +352,7 @@ Data::Data(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
 
 TargetRegion::TargetRegion(int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs,
                            ptrdiff_t *TgtOffsets, int32_t ArgNum)
-    : MessageTy(sizeof(DeviceId) + sizeof(TgtEntryPtr) +
+    : MessageTy(sizeof(DeviceId) + sizeof(TgtEntryPtr) + sizeof(ArgNum) +
                 sizeof(*TgtArgs) * ArgNum + sizeof(ptrdiff_t) * ArgNum) {
   serialize(DeviceId);
   serialize((uintptr_t)TgtEntryPtr);
@@ -380,7 +380,7 @@ TargetTeamRegion::TargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
                                    void **TgtArgs, ptrdiff_t *TgtOffsets,
                                    int32_t ArgNum, int32_t TeamNum,
                                    int32_t ThreadLimit, uint64_t LoopTripCount)
-    : MessageTy(sizeof(DeviceId) + sizeof(TgtEntryPtr) +
+    : MessageTy(sizeof(DeviceId) + sizeof(TgtEntryPtr) + sizeof(ArgNum) +
                 sizeof(*TgtArgs) * ArgNum + sizeof(ptrdiff_t) * ArgNum +
                 sizeof(TeamNum) + sizeof(ThreadLimit) + sizeof(LoopTripCount)) {
   serialize(DeviceId);

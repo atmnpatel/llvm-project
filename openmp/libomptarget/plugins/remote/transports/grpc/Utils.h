@@ -59,6 +59,10 @@ void dump(__tgt_offload_entry *Entry);
 void dump(TargetOffloadEntry Entry);
 void dump(__tgt_target_table *Table);
 void dump(__tgt_device_image *Image);
+
+void dump(char *Begin, int32_t Size, const std::string &Title = "");
+void dump(int Offset, char *Begin, char *End);
+void dump(const char *Begin, const char *End, const std::string &Title = "");
 } // namespace transport::grpc
 
 #endif

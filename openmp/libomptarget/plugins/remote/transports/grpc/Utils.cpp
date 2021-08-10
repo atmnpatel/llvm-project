@@ -15,37 +15,38 @@
 
 namespace transport::grpc {
 
-/// Dumps the memory region from Start to End in order to debug memory transfer
-/// errors within the plugin
-void dump(const void *Start, const void *End) {
-  unsigned char Line[17];
-  const unsigned char *PrintCharacter = (const unsigned char *)Start;
+void dump(size_t Offset, char *Begin, const char *End) {
+  printf("(dec) %lu:  ", Offset);
+  for (char *Itr = Begin; Itr != End; Itr++) {
+    printf(" %d", *Itr);
+  }
+  printf("\n");
 
-  unsigned int I = 0;
-  for (; I < ((const int *)End - (const int *)Start); I++) {
-    if ((I % 16) == 0) {
-      if (I != 0)
-        printf("  %s\n", Line);
+  printf("(hex) %lu:  ", Offset);
+  for (char *Itr = Begin; Itr != End; Itr++) {
+    printf(" %x", *Itr);
+  }
+  printf("\n");
 
-      printf("  %04x ", I);
+  printf("(asc) %lu:  ", Offset);
+  for (char *Itr = Begin; Itr != End; Itr++) {
+    if (std::isgraph(*Itr)) {
+      printf(" %c", *Itr);
+    } else {
+      printf(" %o", *Itr);
     }
-
-    printf(" %02x", PrintCharacter[I]);
-
-    if ((PrintCharacter[I] < 0x20) || (PrintCharacter[I] > 0x7e))
-      Line[I % 16] = '.';
-    else
-      Line[I % 16] = PrintCharacter[I];
-
-    Line[(I % 16) + 1] = '\0';
   }
+  printf("\n");
+}
 
-  while ((I % 16) != 0) {
-    printf("   ");
-    I++;
-  }
+void dump(char *Begin, int32_t Size, const std::string &Title) {
+  return dump(Begin, Begin + Size, Title);
+}
 
-  printf("  %s\n", Line);
+void dump(const char *Begin, const char *End, const std::string &Title) {
+  printf("======================= %s =======================\n", Title.c_str());
+  for (size_t offset = 0; offset < End - Begin; offset += 16)
+    dump(offset, (char *)Begin + offset, std::min(Begin + offset + 16, End));
 }
 
 void dump(__tgt_offload_entry *Entry) {
@@ -75,7 +76,7 @@ void dump(TargetOffloadEntry Entry) {
 }
 
 void dump(__tgt_device_image *Image) {
-  dump(Image->ImageStart, Image->ImageEnd);
+  dump((char *) Image->ImageStart, (char *) Image->ImageEnd);
   __tgt_offload_entry *EntryItr = Image->EntriesBegin;
   for (; EntryItr != Image->EntriesEnd; EntryItr++)
     dump(EntryItr);
