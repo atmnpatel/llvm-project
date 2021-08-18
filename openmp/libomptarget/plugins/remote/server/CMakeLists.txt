@@ -25,7 +25,6 @@ add_llvm_executable(openmp-offloading-server
         ${LIBOMPTARGET_SRC_FILES}
         OffloadingServer.cpp
         ${TRANSPORTS_DIR}/grpc/Server.cpp
-        ${TRANSPORTS_DIR}/grpc/Utils.cpp
         ${TRANSPORTS_DIR}/ucx/Server.cpp
         ${TRANSPORTS_DIR}/ucx/Base.cpp
         ${TRANSPORTS_DIR}/ucx/Serialization.cpp

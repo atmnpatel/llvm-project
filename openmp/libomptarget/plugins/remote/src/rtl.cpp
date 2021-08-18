@@ -14,7 +14,6 @@
 #include <string>
 
 #include "grpc/Client.h"
-#include "omptarget.h"
 #include "omptargetplugin.h"
 #include "ucx/Client.h"
 
@@ -47,6 +46,8 @@ __attribute__((constructor(101))) void initRPC() {
 
 __attribute__((destructor(101))) void deinitRPC() {
   DP("Deinit RPC library!\n");
+
+  Manager->shutdown();
 
   auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
 
@@ -88,10 +89,6 @@ __tgt_target_table *__tgt_rtl_load_binary(int32_t DeviceId,
   return Manager->loadBinary(DeviceId, (__tgt_device_image *)Image);
 }
 
-int32_t __tgt_rtl_is_data_exchangable(int32_t SrcDevId, int32_t DstDevId) {
-  return Manager->isDataExchangeable(SrcDevId, DstDevId);
-}
-
 void *__tgt_rtl_data_alloc(int32_t DeviceId, int64_t Size, void *HstPtr,
                            int32_t Kind) {
   if (Kind != TARGET_ALLOC_DEFAULT) {
@@ -115,11 +112,6 @@ int32_t __tgt_rtl_data_retrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
 
 int32_t __tgt_rtl_data_delete(int32_t DeviceId, void *TgtPtr) {
   return Manager->dataDelete(DeviceId, TgtPtr);
-}
-
-int32_t __tgt_rtl_data_exchange(int32_t SrcDevId, void *SrcPtr,
-                                int32_t DstDevId, void *DstPtr, int64_t Size) {
-  return Manager->dataExchange(SrcDevId, SrcPtr, DstDevId, DstPtr, Size);
 }
 
 int32_t __tgt_rtl_run_target_region(int32_t DeviceId, void *TgtEntryPtr,

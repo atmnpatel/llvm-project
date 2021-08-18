@@ -47,9 +47,6 @@ namespace custom {
 class MessageTy {
 protected:
   size_t MessageSize = 0;
-  char *Buffer;
-  char *CurBuffer;
-
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   void serialize(T &Value) {
     std::memcpy((void *)((CurBuffer += sizeof(Value)) - sizeof(Value)), &Value,
@@ -75,11 +72,13 @@ protected:
   void deserialize(void *&BufferStart, void *&BufferEnd);
 
 public:
-  MessageTy(bool Empty = false);
+  MessageTy() = default;
   MessageTy(size_t Size);
-  MessageTy(char *MessageBuffer);
+  MessageTy(std::string MessageBuffer);
   virtual ~MessageTy() = default;
-  std::pair<char *, size_t> getBuffer();
+
+  std::string Message;
+  char *CurBuffer;
 };
 
 struct I32 : public MessageTy {

@@ -67,15 +67,8 @@ __tgt_target_table *BaseClientManagerTy::loadBinary(int32_t DeviceId,
   return Clients[ClientIdx]->loadBinary(DeviceIdx, Image);
 }
 
-int32_t BaseClientManagerTy::isDataExchangeable(int32_t SrcDevId,
-                                            int32_t DstDevId) {
-  int32_t SrcClientIdx, SrcDeviceIdx, DstClientIdx, DstDeviceIdx;
-  std::tie(SrcClientIdx, SrcDeviceIdx) = mapDeviceId(SrcDevId);
-  std::tie(DstClientIdx, DstDeviceIdx) = mapDeviceId(DstDevId);
-  return Clients[SrcClientIdx]->isDataExchangeable(SrcDeviceIdx, DstDeviceIdx);
-}
-
-void *BaseClientManagerTy::dataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr) {
+void *BaseClientManagerTy::dataAlloc(int32_t DeviceId, int64_t Size,
+                                     void *HstPtr) {
   int32_t ClientIdx, DeviceIdx;
   std::tie(ClientIdx, DeviceIdx) = mapDeviceId(DeviceId);
   return Clients[ClientIdx]->dataAlloc(DeviceIdx, Size, HstPtr);
@@ -101,19 +94,10 @@ int32_t BaseClientManagerTy::dataRetrieve(int32_t DeviceId, void *HstPtr,
   return Clients[ClientIdx]->dataRetrieve(DeviceIdx, HstPtr, TgtPtr, Size);
 }
 
-int32_t BaseClientManagerTy::dataExchange(int32_t SrcDevId, void *SrcPtr,
-                                      int32_t DstDevId, void *DstPtr,
-                                      int64_t Size) {
-  int32_t SrcClientIdx, SrcDeviceIdx, DstClientIdx, DstDeviceIdx;
-  std::tie(SrcClientIdx, SrcDeviceIdx) = mapDeviceId(SrcDevId);
-  std::tie(DstClientIdx, DstDeviceIdx) = mapDeviceId(DstDevId);
-  return Clients[SrcClientIdx]->dataExchange(SrcDeviceIdx, SrcPtr, DstDeviceIdx,
-                                            DstPtr, Size);
-}
-
-int32_t BaseClientManagerTy::runTargetRegion(int32_t DeviceId, void *TgtEntryPtr,
-                                         void **TgtArgs, ptrdiff_t *TgtOffsets,
-                                         int32_t ArgNum) {
+int32_t BaseClientManagerTy::runTargetRegion(int32_t DeviceId,
+                                             void *TgtEntryPtr, void **TgtArgs,
+                                             ptrdiff_t *TgtOffsets,
+                                             int32_t ArgNum) {
   int32_t ClientIdx, DeviceIdx;
   std::tie(ClientIdx, DeviceIdx) = mapDeviceId(DeviceId);
   return Clients[ClientIdx]->runTargetRegion(DeviceIdx, TgtEntryPtr, TgtArgs,
@@ -131,4 +115,9 @@ int32_t BaseClientManagerTy::runTargetTeamRegion(int32_t DeviceId,
   return Clients[ClientIdx]->runTargetTeamRegion(DeviceIdx, TgtEntryPtr, TgtArgs,
                                                 TgtOffsets, ArgNum, TeamNum,
                                                 ThreadLimit, LoopTripCount);
+}
+
+void BaseClientManagerTy::shutdown() {
+  for (auto &Client : Clients)
+    Client->shutdown();
 }

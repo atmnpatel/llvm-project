@@ -56,19 +56,17 @@ void copyOffloadEntry(const DeviceOffloadEntry &EntryResponse,
                       __tgt_offload_entry *Entry);
 
 /// Loads tgt_target_table into a TargetTable protobuf message.
-void loadTargetTable(__tgt_target_table *Table, TargetTable &TableResponse,
-                     __tgt_device_image *Image);
+void loadTargetTable(const __tgt_target_table *Table, TargetTable &TableResponse);
 
 /// Unloads from a target_table from protobuf.
 void unloadTargetTable(
-    TargetTable &TableResponse, __tgt_target_table *Table,
+    const TargetTable &TableResponse, __tgt_target_table *Table,
     std::unordered_map<void *, void *> &HostToRemoteTargetTableMap);
 
 /// Frees argument as constructed by unloadTargetTable
 void freeTargetTable(__tgt_target_table *Table);
 
-void dump(__tgt_bin_desc *Desc);
-
-void dump(char *Begin, int32_t Size, const std::string &Title = "");
-void dump(int Offset, char *Begin, char *End);
+void dump(const __tgt_bin_desc *Desc);
+void dump(const char *Begin, int32_t Size, const std::string &Title = "");
+void dump(int Offset, const char *Begin, const char *End);
 void dump(const char *Begin, const char *End, const std::string &Title = "");

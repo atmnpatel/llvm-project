@@ -15,18 +15,7 @@ namespace transport::ucx {
 
 ServerTy::ServerTy()
     : Base(), ConnectionWorker((ucp_context_h *)Context),
-      DebugLevel(getDebugLevel()), TBD(new __tgt_bin_desc) {
-  // Prevent hierarchical offloading
-  PM->RTLs.BlocklistedRTLs = {"libomptarget.rtl.rpc.so"};
-
-  // Initialize Devices
-  std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, &PM->RTLs);
-
-  PM->RTLsMtx.lock();
-  for (auto &RTL : PM->RTLs.AllRTLs)
-    Devices += RTL.NumberOfDevices;
-  PM->RTLsMtx.unlock();
-}
+      DebugLevel(getDebugLevel()), TBD(new __tgt_bin_desc) {}
 
 ServerTy::~ServerTy() {
   for (auto &Thread : Threads) {
@@ -70,6 +59,12 @@ void ServerTy::ListenerTy::query() {
 
 void ProtobufServerTy::getNumberOfDevices(size_t InterfaceIdx) {
   I32 Response;
+
+  PM->RTLsMtx.lock();
+  for (auto &RTL : PM->RTLs.AllRTLs)
+    Devices += RTL.NumberOfDevices;
+  PM->RTLsMtx.unlock();
+
   Response.set_number(Devices);
 
   SERVER_DBG("Found %d devices", Devices)
@@ -174,7 +169,7 @@ void ProtobufServerTy::loadBinary(size_t InterfaceIdx, std::string &Message) {
   if (TT) {
     SERVER_DBG("Loaded binary (%p) to device %d", (void *)Request.image_ptr(),
                Request.device_id())
-    loadTargetTable(TT, Response, Image);
+    loadTargetTable(TT, Response);
   } else
     ERR("Could not load binary");
 
@@ -193,9 +188,6 @@ void ProtobufServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
 
   Pointer Response;
   Response.set_number(TgtPtr);
-
-  //  printf("Server: Allocated %ld bytes at %p on device %d\n", Request.size(),
-  //         (void *)TgtPtr, Request.device_id());
 
   Interfaces[InterfaceIdx]->send(Count, Response.SerializeAsString(), true);
 
@@ -226,9 +218,6 @@ void ProtobufServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
   SERVER_DBG("Submitting %lu bytes async to (%p) on device %d",
              Request.data().size(), (void *)Request.tgt_ptr(),
              Request.device_id())
-
-  //printf("Submitting\n");
-  //dump(Request.data().c_str(), Request.data().c_str() + Request.data().size());
 
   int32_t Err = PM->Devices[Request.device_id()].RTL->data_submit(
       mapHostRTLDeviceId(Request.device_id()), (void *)Request.tgt_ptr(),
@@ -305,18 +294,6 @@ void ProtobufServerTy::runTargetTeamRegion(size_t InterfaceIdx,
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request.tgt_entry_ptr())->addr;
 
-  /*
-  printf("Server: Device: %d, Executing %p with %d teams, %d threads, %lu
-  loops\n", Request.device_id(), TgtEntryPtr, Request.team_num(),
-         Request.thread_limit(), Request.loop_tripcount());
-  printf("TgtArgs: \n");
-  auto *Offset = Request.tgt_offsets().data();
-  for (auto *Arg = Request.tgt_args().data(); Arg != Request.tgt_args().data() +
-  Request.tgt_args_size(); Arg++, Offset++) { printf(" Arg: %p + %p\n", Arg,
-  Offset);
-  }
-   */
-
   int32_t Ret = PM->Devices[Request.device_id()].RTL->run_team_region(
       mapHostRTLDeviceId(Request.device_id()), TgtEntryPtr,
       (void **)TgtArgs.data(), TgtOffsets.data(), Request.tgt_args_size(),
@@ -368,7 +345,7 @@ void ServerTy::listenForConnections(const ConnectionConfigTy &Config) {
 void ServerTy::run(size_t InterfaceIdx) {
   while (Running) {
     auto [Type, Message] = Interfaces[InterfaceIdx]->receive();
-    SERVER_DBG("Interface: %ld - Type: %s\n", InterfaceIdx,
+    SERVER_DBG("Interface: %ld - Type: %s", InterfaceIdx,
                MessageKindToString[Type].c_str());
 
     if (!Running)
@@ -439,18 +416,24 @@ void ServerTy::run(size_t InterfaceIdx) {
 }
 
 void CustomServerTy::getNumberOfDevices(size_t InterfaceIdx) {
+  PM->RTLsMtx.lock();
+  for (auto &RTL : PM->RTLs.AllRTLs)
+    Devices += RTL.NumberOfDevices;
+  PM->RTLsMtx.unlock();
+
   custom::I32 Response(Devices);
 
+  dump(Response.Message.data(), Response.Message.data()+Response.Message.size());
+
   SERVER_DBG("Found %d devices", Devices)
-  Interfaces[InterfaceIdx]->send(GetNumberOfDevices, Response.getBuffer(),
+  Interfaces[InterfaceIdx]->send(GetNumberOfDevices, Response.Message,
                                  true);
 }
 
 void CustomServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
+  dump(Message.data(), Message.data()+Message.size());
   custom::TargetBinaryDescription Request(Message, TBD,
                                           HostToRemoteDeviceImage);
-
-  //dump(TBD);
 
   PM->RTLs.RegisterLib(TBD);
 
@@ -472,7 +455,7 @@ void CustomServerTy::isValidBinary(size_t InterfaceIdx, std::string &Message) {
 
   custom::I32 Response(IsValid);
 
-  Interfaces[InterfaceIdx]->send(IsValidBinary, Response.getBuffer(), true);
+  Interfaces[InterfaceIdx]->send(IsValidBinary, Response.Message, true);
 }
 
 void CustomServerTy::initRequires(size_t InterfaceIdx, std::string &Message) {
@@ -482,7 +465,7 @@ void CustomServerTy::initRequires(size_t InterfaceIdx, std::string &Message) {
     if (Device.RTL->init_requires)
       Device.RTL->init_requires(Request.Value);
 
-  Interfaces[InterfaceIdx]->send(InitRequires, Request.getBuffer(), true);
+  Interfaces[InterfaceIdx]->send(InitRequires, Request.Message, true);
 }
 
 void CustomServerTy::initDevice(size_t InterfaceIdx, std::string &Message) {
@@ -491,7 +474,7 @@ void CustomServerTy::initDevice(size_t InterfaceIdx, std::string &Message) {
   custom::I32 Response(PM->Devices[Request.Value].RTL->init_device(
       mapHostRTLDeviceId(Request.Value)));
 
-  Interfaces[InterfaceIdx]->send(InitDevice, Response.getBuffer(), true);
+  Interfaces[InterfaceIdx]->send(InitDevice, Response.Message, true);
   SERVER_DBG("Initialized device %d, Err: %d", Request.Value, Response.Value);
 }
 
@@ -505,7 +488,7 @@ void CustomServerTy::loadBinary(size_t InterfaceIdx, std::string &Message) {
 
   if (TT) {
     custom::TargetTable Response(TT);
-    Interfaces[InterfaceIdx]->send(LoadBinary, Response.getBuffer(), true);
+    Interfaces[InterfaceIdx]->send(LoadBinary, Response.Message, true);
   } else {
     ERR("Could not load binary");
   }
@@ -518,25 +501,18 @@ void CustomServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
       mapHostRTLDeviceId(Request.DeviceId), Request.AllocSize,
       (void *)Request.HstPtr, TARGET_ALLOC_DEFAULT);
 
-  //  printf("Server: Allocated %ld bytes at %p on device %d\n",
-  //  Request.AllocSize,
-  //         (void *)TgtPtr, Request.DeviceId);
-
   custom::Pointer Response((uintptr_t)TgtPtr);
-  Interfaces[InterfaceIdx]->send(DataAlloc, Response.getBuffer(), true);
+  Interfaces[InterfaceIdx]->send(DataAlloc, Response.Message, true);
 }
 
 void CustomServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
   custom::DataSubmit Request(Message);
 
-  //printf("Submitting\n");
-  //dump((char *) Request.HstPtr, (char *) Request.HstPtr + Request.DataSize);
-
   custom::I32 Response(PM->Devices[Request.DeviceId].RTL->data_submit(
       mapHostRTLDeviceId(Request.DeviceId), Request.TgtPtr, Request.HstPtr,
       Request.DataSize));
 
-  Interfaces[InterfaceIdx]->send(DataSubmit, Response.getBuffer(), true);
+  Interfaces[InterfaceIdx]->send(DataSubmit, Response.Message, true);
 }
 
 void CustomServerTy::dataRetrieve(size_t InterfaceIdx, std::string &Message) {
@@ -550,7 +526,7 @@ void CustomServerTy::dataRetrieve(size_t InterfaceIdx, std::string &Message) {
 
   custom::Data Response(Value, HstPtr.get(), Request.DataSize);
 
-  Interfaces[InterfaceIdx]->send(DataRetrieve, Response.getBuffer(), true);
+  Interfaces[InterfaceIdx]->send(DataRetrieve, Response.Message, true);
 }
 
 void CustomServerTy::runTargetRegion(size_t InterfaceIdx,
@@ -562,31 +538,19 @@ void CustomServerTy::runTargetRegion(size_t InterfaceIdx,
       (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets,
       Request.ArgNum));
 
-  Interfaces[InterfaceIdx]->send(RunTargetRegion, Response.getBuffer(), true);
+  Interfaces[InterfaceIdx]->send(RunTargetRegion, Response.Message, true);
 }
 
 void CustomServerTy::runTargetTeamRegion(size_t InterfaceIdx,
                                          std::string &Message) {
   custom::TargetTeamRegion Request(Message);
 
-  /*
-  printf("Server: Device: %d, Executing %p with %d teams, %d threads, %lu
-  loops\n", Request.DeviceId, Request.TgtEntryPtr, Request.TeamNum,
-         Request.ThreadLimit, Request.LoopTripCount);
-  printf("TgtArgs: \n");
-  auto *Offset = Request.TgtOffsets;
-  for (auto *Arg = Request.TgtArgs; Arg != Request.TgtArgs + Request.ArgNum;
-       Arg++, Offset++) {
-    printf(" Arg: %p + %p\n", Arg, Offset);
-  }
-   */
-
   custom::I32 Response(PM->Devices[Request.DeviceId].RTL->run_team_region(
       mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
       (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets, Request.ArgNum,
       Request.TeamNum, Request.ThreadLimit, Request.LoopTripCount));
 
-  Interfaces[InterfaceIdx]->send(RunTargetTeamRegion, Response.getBuffer(),
+  Interfaces[InterfaceIdx]->send(RunTargetTeamRegion, Response.Message,
                                  true);
 }
 
@@ -596,12 +560,10 @@ void CustomServerTy::dataDelete(size_t InterfaceIdx, std::string &Message) {
   custom::I32 Response(PM->Devices[Request.DeviceId].RTL->data_delete(
       mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtPtr));
 
-  Interfaces[InterfaceIdx]->send(DataDelete, Response.getBuffer(), true);
+  Interfaces[InterfaceIdx]->send(DataDelete, Response.Message, true);
 }
 
 void CustomServerTy::unregisterLib(size_t InterfaceIdx, std::string &Message) {
-  custom::Pointer Request(Message);
-
   PM->RTLs.UnregisterLib(TBD);
 
   Interfaces[InterfaceIdx]->send(UnregisterLib, std::string("0"), true);

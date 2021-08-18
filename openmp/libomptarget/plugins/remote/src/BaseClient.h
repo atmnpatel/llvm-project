@@ -7,12 +7,11 @@
 
 class BaseClientTy {
 protected:
-  int DebugLevel = 0;
+  uint32_t DebugLevel = 0;
 
 public:
   BaseClientTy() : DebugLevel(getDebugLevel()) {}
   virtual ~BaseClientTy() = default;
-  ;
 
   virtual int32_t registerLib(__tgt_bin_desc *Desc) = 0;
   virtual int32_t unregisterLib(__tgt_bin_desc *Desc) = 0;
@@ -34,10 +33,6 @@ public:
   virtual int32_t dataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
                                int64_t Size) = 0;
 
-  virtual int32_t isDataExchangeable(int32_t SrcDevId, int32_t DstDevId) = 0;
-  virtual int32_t dataExchange(int32_t SrcDevId, void *SrcPtr, int32_t DstDevId,
-                               void *DstPtr, int64_t Size) = 0;
-
   virtual int32_t runTargetRegion(int32_t DeviceId, void *TgtEntryPtr,
                                   void **TgtArgs, ptrdiff_t *TgtOffsets,
                                   int32_t ArgNum) = 0;
@@ -46,12 +41,14 @@ public:
                                       int32_t ArgNum, int32_t TeamNum,
                                       int32_t ThreadLimit,
                                       uint64_t LoopTripCount) = 0;
+
+  virtual void shutdown() = 0;
 };
 
 class BaseClientManagerTy {
 protected:
   std::vector<int> Devices;
-  std::vector<std::unique_ptr<BaseClientTy>> Clients;
+  std::vector<BaseClientTy*> Clients;
 
   std::pair<int32_t, int32_t> mapDeviceId(int32_t DeviceId);
 
@@ -78,10 +75,6 @@ public:
   int32_t dataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
                                int64_t Size);
 
-  int32_t isDataExchangeable(int32_t SrcDevId, int32_t DstDevId);
-  int32_t dataExchange(int32_t SrcDevId, void *SrcPtr, int32_t DstDevId,
-                               void *DstPtr, int64_t Size);
-
   int32_t runTargetRegion(int32_t DeviceId, void *TgtEntryPtr,
                                   void **TgtArgs, ptrdiff_t *TgtOffsets,
                                   int32_t ArgNum);
@@ -90,4 +83,6 @@ public:
                                       int32_t ArgNum, int32_t TeamNum,
                                       int32_t ThreadLimit,
                                       uint64_t LoopTripCount);
+
+  void shutdown();
 };

@@ -31,7 +31,6 @@ add_llvm_library(omptarget.rtl.rpc SHARED
         ${GRPC_SRC_FILES}
         BaseClient.cpp
         Utils.cpp
-        ${TRANSPORTS_DIR}/grpc/Utils.cpp
         ${TRANSPORTS_DIR}/grpc/Client.cpp
         ${TRANSPORTS_DIR}/ucx/Base.cpp
         ${TRANSPORTS_DIR}/ucx/Client.cpp

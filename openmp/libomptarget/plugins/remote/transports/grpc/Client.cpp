@@ -13,8 +13,8 @@
 #include <cmath>
 
 #include "Client.h"
-#include "ucx.pb.h"
 #include "omptarget.h"
+#include "ucx.pb.h"
 
 using namespace std::chrono;
 
@@ -105,8 +105,7 @@ int32_t ClientTy::isValidBinary(__tgt_device_image *Image) {
   return remoteCall(
       /* Preprocessor */
       [&](auto &RPCStatus, auto &Context) {
-        auto *Request =
-            protobuf::Arena::CreateMessage<Pointer>(Arena.get());
+        auto *Request = protobuf::Arena::CreateMessage<Pointer>(Arena.get());
         auto *Reply = protobuf::Arena::CreateMessage<I32>(Arena.get());
 
         Request->set_number((uint64_t)Image);
@@ -229,32 +228,6 @@ __tgt_target_table *ClientTy::loadBinary(int32_t DeviceId,
       /* CanTimeOut */ false);
 }
 
-int32_t ClientTy::isDataExchangeable(int32_t SrcDevId, int32_t DstDevId) {
-  return remoteCall(
-      /* Preprocessor */
-      [&](auto &RPCStatus, auto &Context) {
-        auto *Request = protobuf::Arena::CreateMessage<DevicePair>(Arena.get());
-        auto *Reply = protobuf::Arena::CreateMessage<I32>(Arena.get());
-
-        Request->set_src_dev_id(SrcDevId);
-        Request->set_dst_dev_id(DstDevId);
-
-        RPCStatus = Stub->IsDataExchangeable(&Context, *Request, Reply);
-        return Reply;
-      },
-      /* Postprocessor */
-      [&](auto &Reply) {
-        if (Reply->number()) {
-          CLIENT_DBG("Data is exchangeable between %d, %d", SrcDevId, DstDevId)
-        } else {
-          CLIENT_DBG("Data is not exchangeable between %d, %d", SrcDevId,
-                     DstDevId)
-        }
-        return Reply->number();
-      },
-      /* Error Value */ -1);
-}
-
 void *ClientTy::dataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr) {
   return remoteCall(
       /* Preprocessor */
@@ -294,7 +267,7 @@ int32_t ClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
 
         if (Size > BlockSize) {
           uint64_t Start = 0, End = BlockSize;
-          for (auto I = 0; I < ceil((float)Size / BlockSize); I++) {
+          for (auto I = 0; I < std::ceil((float)Size / (float) BlockSize); I++) {
             auto *Request =
                 protobuf::Arena::CreateMessage<SSubmitData>(Arena.get());
 
@@ -302,7 +275,7 @@ int32_t ClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
             Request->set_data((char *)HstPtr + Start, End - Start);
             Request->set_tgt_ptr((uint64_t)TgtPtr);
             Request->set_start(Start);
-            Request->set_size(End-Start);
+            Request->set_size(End - Start);
 
             if (!Writer->Write(*Request)) {
               CLIENT_DBG("Broken stream when submitting data")
@@ -401,40 +374,6 @@ int32_t ClientTy::dataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
       },
       /* Error Value */ -1,
       /* CanTimeOut */ false);
-}
-
-int32_t ClientTy::dataExchange(int32_t SrcDevId, void *SrcPtr, int32_t DstDevId,
-                               void *DstPtr, int64_t Size) {
-  return remoteCall(
-      /* Preprocessor */
-      [&](auto &RPCStatus, auto &Context) {
-        auto *Reply = protobuf::Arena::CreateMessage<I32>(Arena.get());
-        auto *Request =
-            protobuf::Arena::CreateMessage<ExchangeData>(Arena.get());
-
-        Request->set_src_dev_id(SrcDevId);
-        Request->set_src_ptr((uint64_t)SrcPtr);
-        Request->set_dst_dev_id(DstDevId);
-        Request->set_dst_ptr((uint64_t)DstPtr);
-        Request->set_size(Size);
-
-        RPCStatus = Stub->DataExchange(&Context, *Request, Reply);
-        return Reply;
-      },
-      /* Postprocessor */
-      [&](auto &Reply) {
-        if (Reply->number()) {
-          CLIENT_DBG(
-              "Exchanged %ld bytes on device %d at %p for %p on device %d",
-              Size, SrcDevId, SrcPtr, DstPtr, DstDevId)
-        } else {
-          CLIENT_DBG("Could not exchange %ld bytes on device %d at %p for %p "
-                     "on device %d",
-                     Size, SrcDevId, SrcPtr, DstPtr, DstDevId)
-        }
-        return Reply->number();
-      },
-      /* Error Value */ -1);
 }
 
 int32_t ClientTy::dataDelete(int32_t DeviceId, void *TgtPtr) {
@@ -547,6 +486,14 @@ int32_t ClientTy::runTargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
       },
       /* Error Value */ -1,
       /* CanTimeOut */ false);
+}
+
+void ClientTy::shutdown() {
+  ClientContext Context;
+  auto *Reply = protobuf::Arena::CreateMessage<Null>(Arena.get());
+  auto *Request = protobuf::Arena::CreateMessage<Null>(Arena.get());
+
+  auto RPCStatus = Stub->Shutdown(&Context, *Request, Reply);
 }
 
 } // namespace transport::grpc

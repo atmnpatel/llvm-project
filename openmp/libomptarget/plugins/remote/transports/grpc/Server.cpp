@@ -11,11 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 #include <cmath>
+#include <future>
 
 #include "Server.h"
 #include "omptarget.h"
 
 using grpc::WriteOptions;
+
+extern std::promise<void> ShutdownPromise;
 
 namespace transport::grpc {
 
@@ -25,13 +28,11 @@ RemoteOffloadImpl::RegisterLib(ServerContext *Context,
                                I32 *Reply) {
   auto Desc = new __tgt_bin_desc;
 
-  unloadTargetBinaryDescription(Description, Desc,
-                                HostToRemoteDeviceImage);
+  unloadTargetBinaryDescription(Description, Desc, HostToRemoteDeviceImage);
   PM->RTLs.RegisterLib(Desc);
 
   if (Descriptions.find((void *)Description->bin_ptr()) != Descriptions.end())
-    freeTargetBinaryDescription(
-        Descriptions[(void *)Description->bin_ptr()]);
+    freeTargetBinaryDescription(Descriptions[(void *)Description->bin_ptr()]);
   else
     Descriptions[(void *)Description->bin_ptr()] = Desc;
 
@@ -70,17 +71,15 @@ Status RemoteOffloadImpl::IsValidBinary(ServerContext *Context,
       break;
     }
 
-  SERVER_DBG("Checked if binary (%p) is valid",
-             (void *)(DeviceImage->number()))
+  SERVER_DBG("Checked if binary (%p) is valid", (void *)(DeviceImage->number()))
   return Status::OK;
 }
 
 Status RemoteOffloadImpl::GetNumberOfDevices(ServerContext *Context,
                                              const Null *Null,
                                              I32 *NumberOfDevices) {
-  std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, &PM->RTLs);
-
   int32_t Devices = 0;
+
   PM->RTLsMtx.lock();
   for (auto &RTL : PM->RTLs.AllRTLs)
     Devices += RTL.NumberOfDevices;
@@ -120,25 +119,10 @@ Status RemoteOffloadImpl::LoadBinary(ServerContext *Context,
   Table = PM->Devices[Binary->device_id()].RTL->load_binary(
       mapHostRTLDeviceId(Binary->device_id()), Image);
   if (Table)
-    loadTargetTable(Table, *Reply, Image);
+    loadTargetTable(Table, *Reply);
 
   SERVER_DBG("Loaded binary (%p) to device %d", (void *)Binary->image_ptr(),
              Binary->device_id())
-  return Status::OK;
-}
-
-Status RemoteOffloadImpl::IsDataExchangeable(ServerContext *Context,
-                                             const DevicePair *Request,
-                                             I32 *Reply) {
-  Reply->set_number(-1);
-  if (PM->Devices[mapHostRTLDeviceId(Request->src_dev_id())]
-          .RTL->is_data_exchangable)
-    Reply->set_number(PM->Devices[mapHostRTLDeviceId(Request->src_dev_id())]
-                          .RTL->is_data_exchangable(Request->src_dev_id(),
-                                                    Request->dst_dev_id()));
-
-  SERVER_DBG("Checked if data exchangeable between device %d and device %d",
-             Request->src_dev_id(), Request->dst_dev_id())
   return Status::OK;
 }
 
@@ -151,8 +135,9 @@ Status RemoteOffloadImpl::DataAlloc(ServerContext *Context,
 
   SERVER_DBG("Allocated at " DPxMOD "", DPxPTR((void *)TgtPtr))
 
-//  printf("Server: Allocated %ld bytes at %p on device %d\n", Request->size(),
-//         (void *)TgtPtr, Request->device_id());
+  //  printf("Server: Allocated %ld bytes at %p on device %d\n",
+  //  Request->size(),
+  //         (void *)TgtPtr, Request->device_id());
 
   return Status::OK;
 }
@@ -250,27 +235,6 @@ Status RemoteOffloadImpl::DataRetrieve(ServerContext *Context,
   return Status::OK;
 }
 
-Status RemoteOffloadImpl::DataExchange(ServerContext *Context,
-                                       const ExchangeData *Request,
-                                       I32 *Reply) {
-  if (PM->Devices[Request->src_dev_id()].RTL->data_exchange) {
-    int32_t Ret = PM->Devices[Request->src_dev_id()].RTL->data_exchange(
-        mapHostRTLDeviceId(Request->src_dev_id()), (void *)Request->src_ptr(),
-        mapHostRTLDeviceId(Request->dst_dev_id()), (void *)Request->dst_ptr(),
-        Request->size());
-    Reply->set_number(Ret);
-  } else
-    Reply->set_number(-1);
-
-  SERVER_DBG(
-      "Exchanged data asynchronously from device %d (%p) to device %d (%p) of "
-      "size %lu",
-      mapHostRTLDeviceId(Request->src_dev_id()), (void *)Request->src_ptr(),
-      mapHostRTLDeviceId(Request->dst_dev_id()), (void *)Request->dst_ptr(),
-      Request->size())
-  return Status::OK;
-}
-
 Status RemoteOffloadImpl::DataDelete(ServerContext *Context,
                                      const DeleteData *Request, I32 *Reply) {
   auto Ret = PM->Devices[Request->device_id()].RTL->data_delete(
@@ -295,18 +259,6 @@ Status RemoteOffloadImpl::RunTargetRegion(ServerContext *Context,
     TgtOffsets[I] = (ptrdiff_t)*TgtOffsetItr;
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request->tgt_entry_ptr())->addr;
-
-  /*
-  printf("Server: Device: %d, Executing %p\n", Request->device_id(),
-         TgtEntryPtr);
-  printf("TgtArgs: \n");
-  auto *Offset = Request->tgt_offsets().data();
-  for (auto *Arg = Request->tgt_args().data();
-       Arg != Request->tgt_args().data() + Request->tgt_args_size();
-       Arg++, Offset++) {
-    printf(" Arg: %p + %p\n", Arg, Offset);
-  }
-   */
 
   int32_t Ret = PM->Devices[Request->device_id()].RTL->run_region(
       mapHostRTLDeviceId(Request->device_id()), TgtEntryPtr,
@@ -333,20 +285,6 @@ Status RemoteOffloadImpl::RunTargetTeamRegion(ServerContext *Context,
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request->tgt_entry_ptr())->addr;
 
-  /*
-  printf(
-      "Server: Device: %d, Executing %p with %d teams, %d threads, %lu loops\n",
-      Request->device_id(), TgtEntryPtr, Request->team_num(),
-      Request->thread_limit(), Request->loop_tripcount());
-  printf("TgtArgs: \n");
-  auto *Offset = Request->tgt_offsets().data();
-  for (auto *Arg = Request->tgt_args().data();
-       Arg != Request->tgt_args().data() + Request->tgt_args_size();
-       Arg++, Offset++) {
-    printf(" Arg: %p + %p\n", Arg, Offset);
-  }
-   */
-
   int32_t Ret = PM->Devices[Request->device_id()].RTL->run_team_region(
       mapHostRTLDeviceId(Request->device_id()), TgtEntryPtr,
       (void **)TgtArgs.data(), TgtOffsets.data(), Request->tgt_args_size(),
@@ -356,6 +294,12 @@ Status RemoteOffloadImpl::RunTargetTeamRegion(ServerContext *Context,
 
   SERVER_DBG("Ran TargetTeamRegion on device %d with %d args",
              mapHostRTLDeviceId(Request->device_id()), Request->tgt_args_size())
+  return Status::OK;
+}
+
+Status RemoteOffloadImpl::Shutdown(ServerContext *Context, const Null *Request,
+                                   Null *Reply) {
+  ShutdownPromise.set_value();
   return Status::OK;
 }
 

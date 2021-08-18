@@ -13,13 +13,16 @@ ClientManagerTy::ClientManagerTy(bool Protobuf) {
   ManagerConfigTy Config;
   for (auto &ConnectionConfig : Config.ConnectionConfigs) {
     if (Protobuf)
-      Clients.emplace_back(new ProtobufClientTy(ConnectionConfig));
+      Clients.emplace_back(
+          (BaseClientTy *)new ProtobufClientTy(ConnectionConfig));
     else
-      Clients.emplace_back(new CustomClientTy(ConnectionConfig));
+      Clients.emplace_back(
+          (BaseClientTy *)new CustomClientTy(ConnectionConfig));
   }
 }
 
-ClientTy::ClientTy(ConnectionConfigTy Config) : Config(std::move(Config)) {}
+ClientTy::ClientTy(ConnectionConfigTy Config)
+    : Config(std::move(Config)) {}
 
 ProtobufClientTy::ProtobufClientTy(const ConnectionConfigTy &Config)
     : ClientTy(Config) {}
@@ -163,11 +166,6 @@ __tgt_target_table *ProtobufClientTy::loadBinary(int32_t DeviceId,
   return DevicesToTables[DeviceId].get();
 }
 
-int32_t ProtobufClientTy::isDataExchangeable(int32_t SrcDevId,
-                                             int32_t DstDevId) {
-  llvm_unreachable("Unimplemented");
-}
-
 void *ProtobufClientTy::dataAlloc(int32_t DeviceId, int64_t Size,
                                   void *HstPtr) {
   AllocData Request;
@@ -214,14 +212,14 @@ int32_t ProtobufClientTy::dataDelete(int32_t DeviceId, void *TgtPtr) {
 
 int32_t ProtobufClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr,
                                      void *HstPtr, int64_t Size) {
-  //dump((char *) HstPtr, (char *) HstPtr + Size);
+  // dump((char *) HstPtr, (char *) HstPtr + Size);
   SubmitData Request;
   Request.set_device_id(DeviceId);
   Request.set_data((char *)HstPtr, Size);
   Request.set_tgt_ptr((uint64_t)TgtPtr);
   auto InterfaceIdx = getInterfaceIdx();
 
-  //dump((char *) HstPtr, (char *) HstPtr + Size);
+  // dump((char *) HstPtr, (char *) HstPtr + Size);
 
   CLIENT_DBG("Submitting %ld bytes async on device %d at %p", Size, DeviceId,
              TgtPtr)
@@ -265,12 +263,6 @@ int32_t ProtobufClientTy::dataRetrieve(int32_t DeviceId, void *HstPtr,
   }
 
   return Reply.ret();
-}
-
-int32_t ProtobufClientTy::dataExchange(int32_t SrcDevId, void *SrcPtr,
-                                       int32_t DstDevId, void *DstPtr,
-                                       int64_t Size) {
-  llvm_unreachable("");
 }
 
 int32_t ProtobufClientTy::runTargetRegion(int32_t DeviceId, void *TgtEntryPtr,
@@ -342,78 +334,70 @@ int32_t ProtobufClientTy::runTargetTeamRegion(int32_t DeviceId,
   return Reply.number();
 }
 
+void ProtobufClientTy::shutdown() {}
+
 CustomClientTy::CustomClientTy(const ConnectionConfigTy &Config)
     : ClientTy(Config) {}
 
 int32_t CustomClientTy::getNumberOfDevices() {
-  //std::lock_guard Guard(GMtx);
-  custom::MessageTy Request(true);
   auto InterfaceIdx = getInterfaceIdx();
   Interfaces[InterfaceIdx]->send(MessageKind::GetNumberOfDevices,
-                                 Request.getBuffer());
+                                 std::string("0"));
 
   if (!Interfaces[InterfaceIdx]->EP.Connected)
     return 0;
 
-  custom::I32 NumDevices(Interfaces[InterfaceIdx]->receive().second);
-  return NumDevices.Value;
+  transport::ucx::custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
+  dump(Response.Message.data(), Response.Message.data()+Response.Message.size());
+  return Response.Value;
 }
 
 int32_t CustomClientTy::registerLib(__tgt_bin_desc *Description) {
-  //std::lock_guard Guard(GMtx);
   auto InterfaceIdx = getInterfaceIdx();
-  custom::TargetBinaryDescription Request(Description);
-  Interfaces[InterfaceIdx]->send(MessageKind::RegisterLib, Request.getBuffer());
 
-  auto Response = Interfaces[InterfaceIdx]->receive();
+  ucx::custom::TargetBinaryDescription TBD(Description);
+  dump(TBD.Message.data(), TBD.Message.data()+TBD.Message.size());
 
+  Interfaces[InterfaceIdx]->send(MessageKind::RegisterLib,
+                                 TBD.Message);
+  Interfaces[InterfaceIdx]->receive();
   return 0;
 }
 
 int32_t CustomClientTy::unregisterLib(__tgt_bin_desc *Description) {
-  //std::lock_guard Guard(GMtx);
-  custom::Pointer Request((uintptr_t)Description);
   auto InterfaceIdx = getInterfaceIdx();
 
   Interfaces[InterfaceIdx]->send(MessageKind::UnregisterLib,
-                                 Request.getBuffer());
-
-  auto Response = Interfaces[InterfaceIdx]->receive();
+                                 std::string("0"));
+  Interfaces[InterfaceIdx]->receive();
 
   return 0;
 }
 
 int32_t CustomClientTy::isValidBinary(__tgt_device_image *Image) {
-  //std::lock_guard Guard(GMtx);
-  custom::Pointer Request((uintptr_t)Image);
   auto InterfaceIdx = getInterfaceIdx();
   Interfaces[InterfaceIdx]->send(MessageKind::IsValidBinary,
-                                 Request.getBuffer());
+                                 transport::ucx::custom::Pointer((uintptr_t) Image).Message);
 
-  custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
-
+  transport::ucx::custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
   return Response.Value;
 }
 
 int32_t CustomClientTy::initDevice(int32_t DeviceId) {
-  //std::lock_guard Guard(GMtx);
-  custom::I32 Request(DeviceId);
   auto InterfaceIdx = getInterfaceIdx();
 
-  Interfaces[InterfaceIdx]->send(MessageKind::InitDevice, Request.getBuffer());
+  Interfaces[InterfaceIdx]->send(MessageKind::InitDevice, transport::ucx::custom::I32(DeviceId).Message);
 
-  custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
-
+  transport::ucx::custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
   return Response.Value;
 }
 
 int64_t CustomClientTy::initRequires(int64_t RequiresFlags) {
-  //std::lock_guard Guard(GMtx);
   custom::I64 Request(RequiresFlags);
   auto InterfaceIdx = getInterfaceIdx();
 
   Interfaces[InterfaceIdx]->send(MessageKind::InitRequires,
-                                 Request.getBuffer());
+                                 Request.Message);
 
   custom::I64 Response(Interfaces[InterfaceIdx]->receive().second);
 
@@ -422,28 +406,21 @@ int64_t CustomClientTy::initRequires(int64_t RequiresFlags) {
 
 __tgt_target_table *CustomClientTy::loadBinary(int32_t DeviceId,
                                                __tgt_device_image *Image) {
-  //std::lock_guard Guard(GMtx);
   custom::Binary Request(DeviceId, Image);
   auto InterfaceIdx = getInterfaceIdx();
 
-  Interfaces[InterfaceIdx]->send(MessageKind::LoadBinary, Request.getBuffer());
+  Interfaces[InterfaceIdx]->send(MessageKind::LoadBinary, Request.Message);
 
   custom::TargetTable Response(Interfaces[InterfaceIdx]->receive().second);
 
   return Response.Table;
 }
 
-int32_t CustomClientTy::isDataExchangeable(int32_t SrcDevId, int32_t DstDevId) {
-  //std::lock_guard Guard(GMtx);
-  llvm_unreachable("Unimplemented");
-}
-
 void *CustomClientTy::dataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr) {
-  //std::lock_guard Guard(GMtx);
   custom::DataAlloc Request(DeviceId, Size, HstPtr);
   auto InterfaceIdx = getInterfaceIdx();
 
-  Interfaces[InterfaceIdx]->send(MessageKind::DataAlloc, Request.getBuffer());
+  Interfaces[InterfaceIdx]->send(MessageKind::DataAlloc, Request.Message);
 
   custom::Pointer Response(Interfaces[InterfaceIdx]->receive().second);
 
@@ -451,11 +428,10 @@ void *CustomClientTy::dataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr) {
 }
 
 int32_t CustomClientTy::dataDelete(int32_t DeviceId, void *TgtPtr) {
-  //std::lock_guard Guard(GMtx);
   custom::DataDelete Request(DeviceId, TgtPtr);
   auto InterfaceIdx = getInterfaceIdx();
 
-  Interfaces[InterfaceIdx]->send(MessageKind::DataDelete, Request.getBuffer());
+  Interfaces[InterfaceIdx]->send(MessageKind::DataDelete, Request.Message);
 
   custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
 
@@ -464,13 +440,10 @@ int32_t CustomClientTy::dataDelete(int32_t DeviceId, void *TgtPtr) {
 
 int32_t CustomClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                                    int64_t Size) {
-  //std::lock_guard Guard(GMtx);
-  //dump((char *) HstPtr, (char *) HstPtr + Size);
   custom::DataSubmit Request(DeviceId, TgtPtr, HstPtr, Size);
-  //dump((char *) HstPtr, (char *) HstPtr + Size);
 
   auto InterfaceIdx = getInterfaceIdx();
-  Interfaces[InterfaceIdx]->send(MessageKind::DataSubmit, Request.getBuffer());
+  Interfaces[InterfaceIdx]->send(MessageKind::DataSubmit, Request.Message);
 
   custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
 
@@ -479,12 +452,11 @@ int32_t CustomClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
 
 int32_t CustomClientTy::dataRetrieve(int32_t DeviceId, void *HstPtr,
                                      void *TgtPtr, int64_t Size) {
-  //std::lock_guard Guard(GMtx);
   custom::DataRetrieve Request(DeviceId, HstPtr, TgtPtr, Size);
   auto InterfaceIdx = getInterfaceIdx();
 
   Interfaces[InterfaceIdx]->send(MessageKind::DataRetrieve,
-                                 Request.getBuffer());
+                                 Request.Message);
 
   custom::Data Response(Interfaces[InterfaceIdx]->receive().second);
 
@@ -493,22 +465,14 @@ int32_t CustomClientTy::dataRetrieve(int32_t DeviceId, void *HstPtr,
   return Response.Value;
 }
 
-int32_t CustomClientTy::dataExchange(int32_t SrcDevId, void *SrcPtr,
-                                     int32_t DstDevId, void *DstPtr,
-                                     int64_t Size) {
-  //std::lock_guard Guard(GMtx);
-  llvm_unreachable("");
-}
-
 int32_t CustomClientTy::runTargetRegion(int32_t DeviceId, void *TgtEntryPtr,
                                         void **TgtArgs, ptrdiff_t *TgtOffsets,
                                         int32_t ArgNum) {
-  //std::lock_guard Guard(GMtx);
   custom::TargetRegion Request(DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets,
                                ArgNum);
   auto InterfaceIdx = getInterfaceIdx();
 
-  Interfaces[InterfaceIdx]->send(RunTargetRegion, Request.getBuffer());
+  Interfaces[InterfaceIdx]->send(RunTargetRegion, Request.Message);
 
   custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
 
@@ -521,15 +485,17 @@ int32_t CustomClientTy::runTargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
                                             int32_t ArgNum, int32_t TeamNum,
                                             int32_t ThreadLimit,
                                             uint64_t LoopTripCount) {
-  //std::lock_guard Guard(GMtx);
   custom::TargetTeamRegion Request(DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets,
                                    ArgNum, TeamNum, ThreadLimit, LoopTripCount);
   auto InterfaceIdx = getInterfaceIdx();
 
-  Interfaces[InterfaceIdx]->send(RunTargetTeamRegion, Request.getBuffer());
+  Interfaces[InterfaceIdx]->send(RunTargetTeamRegion, Request.Message);
 
   custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
 
   return Response.Value;
 }
+
+void CustomClientTy::shutdown() {}
+
 } // namespace transport::ucx

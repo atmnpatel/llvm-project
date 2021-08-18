@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <future>
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
 #include <iostream>
@@ -18,8 +19,16 @@
 #include "grpc/Server.h"
 #include "ucx/Server.h"
 
+std::promise<void> ShutdownPromise;
+
 int main() {
   auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
+
+  // Prevent hierarchical offloading
+  PM->RTLs.BlocklistedRTLs = {"libomptarget.rtl.rpc.so"};
+
+  // Initialize Devices
+  std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, &PM->RTLs);
 
   if (!Transport || !strcmp(Transport, "gRPC")) {
     transport::grpc::ClientManagerConfigTy Config;
@@ -37,7 +46,14 @@ int main() {
       std::cerr << "Server listening on " << Config.ServerAddresses[0]
                 << std::endl;
 
-    Server->Wait();
+    auto WaitForServer = [&]() { Server->Wait(); };
+
+    std::thread ServerThread(WaitForServer);
+
+    auto ShutdownFuture = ShutdownPromise.get_future();
+    ShutdownFuture.wait();
+    Server->Shutdown();
+    ServerThread.join();
 
     return 0;
   }

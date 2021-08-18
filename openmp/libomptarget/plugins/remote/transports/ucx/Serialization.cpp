@@ -7,19 +7,16 @@
 namespace transport::ucx {
 
 namespace custom {
-std::pair<char *, size_t> MessageTy::getBuffer() {
-  return {Buffer, MessageSize};
+
+MessageTy::MessageTy(size_t Size)
+    : MessageSize(Size) {
+  Message.resize(Size);
+  CurBuffer = Message.data();
 }
 
-MessageTy::MessageTy(bool Empty)
-    : MessageSize(Empty ? 1 : 0),
-      Buffer(Empty ? (char *)calloc(1, MessageSize) : nullptr),
-      CurBuffer(Empty ? Buffer : nullptr) {}
-MessageTy::MessageTy(size_t Size)
-    : MessageSize(Size), Buffer((char *)malloc(Size)), CurBuffer(Buffer) {}
-
-MessageTy::MessageTy(char *MessageBuffer)
-    : Buffer(MessageBuffer), CurBuffer(Buffer) {}
+MessageTy::MessageTy(std::string M)
+    : Message(M), CurBuffer(Message.data()) {
+}
 
 void MessageTy::serialize(uintptr_t Value) {
   std::memcpy((void *)((CurBuffer += sizeof(Value)) - sizeof(Value)), &Value,
@@ -119,22 +116,22 @@ I32::I32(int32_t Value) : MessageTy(sizeof(Value)), Value(Value) {
   serialize(Value);
 }
 
-I32::I32(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
-  std::memcpy(&Value, Buffer, sizeof(int32_t));
+I32::I32(std::string MessageBuffer) : MessageTy(MessageBuffer) {
+  Value = *((int32_t *)CurBuffer);
 }
 
 I64::I64(int64_t Value) : MessageTy(sizeof(Value)) { serialize(Value); }
 
-I64::I64(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
-  std::memcpy(&Value, Buffer, sizeof(int64_t));
+I64::I64(std::string MessageBuffer) : MessageTy(MessageBuffer) {
+  std::memcpy(&Value, CurBuffer, sizeof(int64_t));
 }
 
 Pointer::Pointer(uintptr_t Value) : MessageTy(sizeof(Value)) {
   serialize(Value);
 }
 
-Pointer::Pointer(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
-  std::memcpy(&Value, Buffer, sizeof(uintptr_t));
+Pointer::Pointer(std::string MessageBuffer) : MessageTy(MessageBuffer) {
+  std::memcpy(&Value, CurBuffer, sizeof(uintptr_t));
 }
 
 TargetBinaryDescription::TargetBinaryDescription(__tgt_bin_desc *Description) {
@@ -169,8 +166,8 @@ TargetBinaryDescription::TargetBinaryDescription(__tgt_bin_desc *Description) {
     MessageSize += sizeof(NumEntries);
   }
 
-  Buffer = new char[MessageSize];
-  CurBuffer = Buffer;
+  Message.resize(MessageSize);
+  CurBuffer = Message.data();
 
   // Find number of entries
   NumEntries = 0;
@@ -197,7 +194,7 @@ TargetBinaryDescription::TargetBinaryDescription(
     std::string &MessageBuffer, __tgt_bin_desc *Description,
     std::unordered_map<const void *, __tgt_device_image *>
         &HostToRemoteDeviceImage)
-    : MessageTy(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer) {
   int32_t NumEntries;
   deserialize(NumEntries);
 
@@ -229,7 +226,7 @@ Binary::Binary(int32_t DeviceId, __tgt_device_image *Image)
   serialize((uintptr_t)Image);
 }
 
-Binary::Binary(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
+Binary::Binary(std::string MessageBuffer) : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   Image = deserializePointer();
 }
@@ -247,8 +244,8 @@ TargetTable::TargetTable(__tgt_target_table *Table) {
                    sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
   }
 
-  Buffer = new char[MessageSize];
-  CurBuffer = Buffer;
+  Message.resize(MessageSize);
+  CurBuffer = Message.data();
 
   serialize(NumEntries);
   for (auto *CurEntry = Table->EntriesBegin; CurEntry != Table->EntriesEnd;
@@ -257,7 +254,7 @@ TargetTable::TargetTable(__tgt_target_table *Table) {
 }
 
 TargetTable::TargetTable(std::string MessageBuffer)
-    : MessageTy(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer) {
   Table = new __tgt_target_table;
 
   int NumEntries;
@@ -273,15 +270,15 @@ TargetTable::TargetTable(std::string MessageBuffer)
 
 DataAlloc::DataAlloc(int32_t DeviceId, int64_t AllocSize, void *HstPtr) {
   MessageSize = sizeof(DeviceId) + sizeof(AllocSize) + sizeof(HstPtr);
-  Buffer = new char[MessageSize];
-  CurBuffer = Buffer;
+  Message.resize(MessageSize);
+  CurBuffer = Message.data();
   serialize(DeviceId);
   serialize(AllocSize);
   serialize((uintptr_t)HstPtr);
 }
 
 DataAlloc::DataAlloc(std::string MessageBuffer)
-    : MessageTy(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   deserialize(AllocSize);
   HstPtr = deserializePointer();
@@ -294,7 +291,7 @@ DataDelete::DataDelete(int32_t DeviceId, void *TgtPtr)
 }
 
 DataDelete::DataDelete(std::string MessageBuffer)
-    : MessageTy(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   TgtPtr = deserializePointer();
 }
@@ -309,7 +306,7 @@ DataSubmit::DataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
 }
 
 DataSubmit::DataSubmit(std::string MessageBuffer)
-    : MessageTy(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   TgtPtr = deserializePointer();
   HstPtr = nullptr;
@@ -329,7 +326,7 @@ DataRetrieve::DataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
 }
 
 DataRetrieve::DataRetrieve(std::string MessageBuffer)
-    : MessageTy(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   HstPtr = deserializePointer();
   TgtPtr = deserializePointer();
@@ -342,7 +339,7 @@ Data::Data(int32_t Value, char *Buffer, size_t DataSize)
   serialize(Buffer, Buffer + DataSize);
 }
 
-Data::Data(std::string MessageBuffer) : MessageTy(MessageBuffer.data()) {
+Data::Data(std::string MessageBuffer) : MessageTy(MessageBuffer) {
   deserialize(Value);
   DataBuffer = nullptr;
   void *BufferEnd = nullptr;
@@ -364,7 +361,7 @@ TargetRegion::TargetRegion(int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs,
 }
 
 TargetRegion::TargetRegion(std::string MessageBuffer)
-    : MessageTy(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   TgtEntryPtr = deserializePointer();
   deserialize(ArgNum);
@@ -396,7 +393,7 @@ TargetTeamRegion::TargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
 }
 
 TargetTeamRegion::TargetTeamRegion(std::string MessageBuffer)
-    : MessageTy(MessageBuffer.data()) {
+    : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   TgtEntryPtr = deserializePointer();
   deserialize(ArgNum);

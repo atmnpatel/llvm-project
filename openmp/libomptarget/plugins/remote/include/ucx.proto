@@ -23,21 +23,15 @@ service RemoteOffload {
   rpc DataSubmit(stream SSubmitData) returns (I32) {}
   rpc DataRetrieve(RetrieveData) returns (stream SData) {}
 
-  rpc IsDataExchangeable(DevicePair) returns (I32) {}
-  rpc DataExchange(ExchangeData) returns (I32) {}
-
   rpc RunTargetRegion(TargetRegion) returns (I32) {}
   rpc RunTargetTeamRegion(TargetTeamRegion) returns (I32) {}
+
+  rpc Shutdown(Null) returns (Null) {}
 }
 
 message Null {}
 
 message Pointer { uint64 number = 1; }
-
-message DevicePair {
-  int32 src_dev_id = 1;
-  int32 dst_dev_id = 2;
-}
 
 message Binary {
   uint64 image_ptr = 1;
@@ -89,14 +83,6 @@ message SData {
   int32 ret = 4;
 }
 
-message ExchangeData {
-  uint64 src_dev_id = 1;
-  uint64 src_ptr = 2;
-  uint64 dst_dev_id = 3;
-  uint64 dst_ptr = 4;
-  uint64 size = 6;
-}
-
 message DeleteData {
   uint64 tgt_ptr = 1;
   int32 device_id = 2;
@@ -143,14 +129,14 @@ message Data {
 
 message TargetRegion {
   repeated uint64 tgt_args = 1;
-  repeated int64 tgt_offsets = 2;
+  repeated uint64 tgt_offsets = 2;
   uint64 tgt_entry_ptr = 3;
   int32 device_id = 4;
 }
 
 message TargetTeamRegion {
   repeated uint64 tgt_args = 1;
-  repeated int64 tgt_offsets = 2;
+  repeated uint64 tgt_offsets = 2;
   uint64 tgt_entry_ptr = 3;
   uint64 loop_tripcount = 4;
   int32 device_id = 5;

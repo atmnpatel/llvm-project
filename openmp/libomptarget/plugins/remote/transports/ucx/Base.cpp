@@ -167,14 +167,6 @@ void Base::InterfaceTy::send(MessageKind Type, std::string Message,
   await(EP.asyncSend(SlabTag, Message.data(), Message.length()));
 }
 
-void Base::InterfaceTy::send(MessageKind Type,
-                             std::pair<char *, size_t> Message, bool IsServer) {
-  uint64_t SlabTag = LastSendTag++;
-  SlabTag = ((uint64_t)Type << 60) | SlabTag;
-
-  await(EP.asyncSend(SlabTag, Message.first, Message.second));
-}
-
 void Base::InterfaceTy::await(SendFutureTy Future) {
   if (Future.Request == nullptr)
     return;
@@ -193,30 +185,6 @@ void Base::InterfaceTy::await(SendFutureTy Future) {
 
   if (Status != UCS_OK && EP.Connected)
     ERR("failed to send message {0}\n", ucs_status_string(Status))
-}
-
-void Base::InterfaceTy::await(ReceiveFutureTy Future) {
-  if (!Future.Request)
-    return;
-
-  ucs_status_t Status;
-
-  if (UCS_PTR_IS_ERR(Future.Request)) {
-    ERR("failed to send message {0}\n",
-        ucs_status_string(UCS_PTR_STATUS(Future.Request)))
-  } else if (UCS_PTR_IS_PTR(Future.Request)) {
-    std::lock_guard Guard(Worker.ProgressMtx);
-    while (!Future.Request->Complete) {
-      ucp_worker_progress(Worker);
-    }
-
-    Future.Request->Complete = 0;
-    Status = ucp_request_check_status(Future.Request);
-    ucp_request_release(Future.Request);
-
-    if (Status != UCS_OK)
-      ERR("failed to send message {0}\n", ucs_status_string(Status))
-  }
 }
 
 std::pair<MessageKind, std::string> Base::InterfaceTy::receive() {

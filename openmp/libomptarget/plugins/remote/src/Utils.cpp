@@ -93,11 +93,9 @@ void freeTargetTable(__tgt_target_table *Table) {
   delete[] Table->EntriesBegin;
 }
 
-void loadTargetTable(__tgt_target_table *Table, TargetTable &TableResponse,
-                     __tgt_device_image *Image) {
-  auto *ImageEntry = Image->EntriesBegin;
+void loadTargetTable(const __tgt_target_table *Table, TargetTable &TableResponse) {
   for (__tgt_offload_entry *CurEntry = Table->EntriesBegin;
-       CurEntry != Table->EntriesEnd; CurEntry++, ImageEntry++) {
+       CurEntry != Table->EntriesEnd; CurEntry++) {
     // TODO: This can probably be trimmed substantially.
     auto *NewEntry = TableResponse.add_entries();
     NewEntry->set_name(CurEntry->name);
@@ -110,7 +108,7 @@ void loadTargetTable(__tgt_target_table *Table, TargetTable &TableResponse,
 }
 
 void unloadTargetTable(
-    TargetTable &TableResponse, __tgt_target_table *Table,
+    const TargetTable &TableResponse, __tgt_target_table *Table,
     std::unordered_map<void *, void *> &HostToRemoteTargetTableMap) {
   Table->EntriesBegin = new __tgt_offload_entry[TableResponse.entries_size()];
 
@@ -157,11 +155,11 @@ void copyOffloadEntry(const __tgt_offload_entry *Entry,
   EntryResponse->set_data(Entry->addr, Entry->size);
 }
 
-void dump(__tgt_offload_entry *Entry) {
+void dump(const __tgt_offload_entry *Entry) {
   printf("  Entry (%s): %p [%ld], %d, %d\n", Entry->name, Entry->addr, Entry->size, Entry->flags, Entry->reserved);
 }
 
-void dump(__tgt_bin_desc *Desc) {
+void dump(const __tgt_bin_desc *Desc) {
   printf("Global Entries:\n");
   for (auto *Entry = Desc->HostEntriesBegin; Entry != Desc->HostEntriesEnd; Entry++) {
     dump(Entry);
@@ -178,21 +176,21 @@ void dump(__tgt_bin_desc *Desc) {
   }
 }
 
-void dump(size_t Offset, char *Begin, const char *End) {
+void dump(size_t Offset, const char *Begin, const char *End) {
   printf("(dec) %lu:  ", Offset);
-  for (char *Itr = Begin; Itr != End; Itr++) {
+  for (auto *Itr = Begin; Itr != End; Itr++) {
     printf(" %d", *Itr);
   }
   printf("\n");
 
   printf("(hex) %lu:  ", Offset);
-  for (char *Itr = Begin; Itr != End; Itr++) {
+  for (auto *Itr = Begin; Itr != End; Itr++) {
     printf(" %x", *Itr);
   }
   printf("\n");
 
   printf("(asc) %lu:  ", Offset);
-  for (char *Itr = Begin; Itr != End; Itr++) {
+  for (auto *Itr = Begin; Itr != End; Itr++) {
     if (std::isgraph(*Itr)) {
       printf(" %c", *Itr);
     } else {
@@ -202,12 +200,12 @@ void dump(size_t Offset, char *Begin, const char *End) {
   printf("\n");
 }
 
-void dump(char *Begin, int32_t Size, const std::string &Title) {
+void dump(const char *Begin, int32_t Size, const std::string &Title) {
   return dump(Begin, Begin + Size, Title);
 }
 
 void dump(const char *Begin, const char *End, const std::string &Title) {
   printf("======================= %s =======================\n", Title.c_str());
   for (size_t offset = 0; offset < End - Begin; offset += 16)
-    dump(offset, (char *)Begin + offset, std::min(Begin + offset + 16, End));
+    dump(offset, Begin + offset, std::min(Begin + offset + 16, End));
 }

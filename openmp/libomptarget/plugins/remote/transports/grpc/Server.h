@@ -40,8 +40,7 @@ private:
 
   std::unordered_map<const void *, __tgt_device_image *>
       HostToRemoteDeviceImage;
-  std::unordered_map<const void *, __tgt_bin_desc*>
-      Descriptions;
+  std::unordered_map<const void *, __tgt_bin_desc *> Descriptions;
   __tgt_target_table *Table = nullptr;
 
   int DebugLevel;
@@ -64,8 +63,7 @@ public:
   Status UnregisterLib(ServerContext *Context, const Pointer *Request,
                        I32 *Reply) override;
 
-  Status IsValidBinary(ServerContext *Context,
-                       const Pointer *Image,
+  Status IsValidBinary(ServerContext *Context, const Pointer *Image,
                        I32 *IsValid) override;
   Status GetNumberOfDevices(ServerContext *Context, const Null *Null,
                             I32 *NumberOfDevices) override;
@@ -77,8 +75,6 @@ public:
 
   Status LoadBinary(ServerContext *Context, const Binary *Binary,
                     TargetTable *Reply) override;
-  Status IsDataExchangeable(ServerContext *Context, const DevicePair *Request,
-                            I32 *Reply) override;
 
   Status DataAlloc(ServerContext *Context, const AllocData *Request,
                    Pointer *Reply) override;
@@ -87,9 +83,6 @@ public:
                     I32 *Reply) override;
   Status DataRetrieve(ServerContext *Context, const RetrieveData *Request,
                       ServerWriter<SData> *Writer) override;
-
-  Status DataExchange(ServerContext *Context, const ExchangeData *Request,
-                      I32 *Reply) override;
 
   Status DataDelete(ServerContext *Context, const DeleteData *Request,
                     I32 *Reply) override;
@@ -100,6 +93,9 @@ public:
   Status RunTargetTeamRegion(ServerContext *Context,
                              const TargetTeamRegion *Request,
                              I32 *Reply) override;
+
+  Status Shutdown(ServerContext *Context, const Null *Request,
+                  Null *Reply) override;
 };
 
 } // namespace transport::grpc

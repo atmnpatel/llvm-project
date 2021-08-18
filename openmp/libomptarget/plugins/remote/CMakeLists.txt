@@ -24,7 +24,7 @@ find_package(gRPC CONFIG)
 find_program(PROTOC protoc)
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
 
-set(SERIALIZATION_DIR ${CMAKE_CURRENT_SOURCE_DIR}/serialization/protobuf)
+set(SERIALIZATION_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(TRANSPORTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/transports/)
 
 set(CMAKE_CXX_STANDARD 20)

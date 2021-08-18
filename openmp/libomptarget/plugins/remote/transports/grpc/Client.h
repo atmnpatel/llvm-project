@@ -84,10 +84,6 @@ public:
   int32_t dataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
                        int64_t Size) override;
 
-  int32_t isDataExchangeable(int32_t SrcDevId, int32_t DstDevId) override;
-  int32_t dataExchange(int32_t SrcDevId, void *SrcPtr, int32_t DstDevId,
-                       void *DstPtr, int64_t Size) override;
-
   int32_t runTargetRegion(int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs,
                           ptrdiff_t *TgtOffsets, int32_t ArgNum) override;
   int32_t runTargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
@@ -95,6 +91,8 @@ public:
                               int32_t ArgNum, int32_t TeamNum,
                               int32_t ThreadLimit,
                               uint64_t LoopTripCount) override;
+
+  void shutdown() override;
 };
 
 struct ClientManagerTy final : public BaseClientManagerTy {

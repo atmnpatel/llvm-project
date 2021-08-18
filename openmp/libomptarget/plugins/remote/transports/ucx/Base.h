@@ -123,11 +123,8 @@ struct Base {
     InterfaceTy(const InterfaceTy &Interface);
 
     void send(MessageKind Type, std::string Message, bool IsServer = false);
-    void send(MessageKind Type, std::pair<char *, size_t> Message,
-              bool IsServer = false);
 
     void await(SendFutureTy Future);
-    void await(ReceiveFutureTy Future);
 
     std::pair<MessageKind, std::string> receive();
   };
