@@ -36,6 +36,11 @@
 
 namespace transport::ucx {
 
+enum class SerializerType {
+  Custom,
+  Protobuf
+};
+
 const uint16_t PortStringLength = 8;
 const uint16_t IPStringLength = 50;
 

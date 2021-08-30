@@ -5,6 +5,7 @@
 #include "Utils.h"
 #include "device.h"
 #include "ucs/type/status.h"
+#include "Serializer.h"
 
 extern PluginManager *PM;
 
@@ -40,26 +41,28 @@ protected:
   int32_t Devices = 0;
   std::atomic<bool> Running;
 
+  SerializerTy *Serializer;
+
 public:
-  ServerTy();
+  ServerTy(SerializerType Type);
   ~ServerTy();
 
   void listenForConnections(const ConnectionConfigTy &Config);
 
   void run(size_t InterfaceIdx);
-  virtual void getNumberOfDevices(size_t InterfaceIdx) = 0;
-  virtual void registerLib(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void isValidBinary(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void initRequires(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void initDevice(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void loadBinary(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void dataAlloc(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void dataSubmit(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void dataRetrieve(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void runTargetRegion(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void runTargetTeamRegion(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void dataDelete(size_t InterfaceIdx, std::string &Message) = 0;
-  virtual void unregisterLib(size_t InterfaceIdx, std::string &Message) = 0;
+  virtual void getNumberOfDevices(size_t InterfaceIdx);
+  virtual void registerLib(size_t InterfaceIdx, std::string &Message);
+  virtual void isValidBinary(size_t InterfaceIdx, std::string &Message);
+  virtual void initRequires(size_t InterfaceIdx, std::string &Message);
+  virtual void initDevice(size_t InterfaceIdx, std::string &Message);
+  virtual void loadBinary(size_t InterfaceIdx, std::string &Message);
+  virtual void dataAlloc(size_t InterfaceIdx, std::string &Message);
+  virtual void dataSubmit(size_t InterfaceIdx, std::string &Message);
+  virtual void dataRetrieve(size_t InterfaceIdx, std::string &Message);
+  virtual void runTargetRegion(size_t InterfaceIdx, std::string &Message);
+  virtual void runTargetTeamRegion(size_t InterfaceIdx, std::string &Message);
+  virtual void dataDelete(size_t InterfaceIdx, std::string &Message);
+  virtual void unregisterLib(size_t InterfaceIdx, std::string &Message);
 };
 
 class ServerTy::ListenerTy {
@@ -103,6 +106,8 @@ class ProtobufServerTy : public ServerTy {
   }
 
 public:
+  ProtobufServerTy(SerializerType Type);
+
   void getNumberOfDevices(size_t InterfaceIdx) override;
   void registerLib(size_t InterfaceIdx, std::string &Message) override;
   void isValidBinary(size_t InterfaceIdx, std::string &Message) override;
@@ -119,6 +124,9 @@ public:
 };
 
 struct CustomServerTy : public ServerTy {
+
+  CustomServerTy(SerializerType Type);
+
   void getNumberOfDevices(size_t InterfaceIdx) override;
   void registerLib(size_t InterfaceIdx, std::string &Message) override;
   void isValidBinary(size_t InterfaceIdx, std::string &Message) override;

@@ -9,6 +9,7 @@
 #include <cstring>
 #include <memory>
 #include <type_traits>
+#include "Serializer.h"
 
 namespace transport::ucx {
 
@@ -17,6 +18,11 @@ protected:
   ConnectionConfigTy Config;
   std::map<std::thread::id, size_t> InterfaceId;
   std::vector<std::unique_ptr<Base::InterfaceTy>> Interfaces;
+
+  SerializerTy* Serializer;
+
+public:
+  ClientTy(ConnectionConfigTy Config, SerializerType Type);
 
   size_t getInterfaceIdx() {
     std::stringstream SS;
@@ -31,13 +37,10 @@ protected:
     auto NextInterfaceIdx = InterfaceId[std::this_thread::get_id()];
     return NextInterfaceIdx;
   }
-
-public:
-  ClientTy(ConnectionConfigTy Config);
 };
 
 struct ClientManagerTy final : public BaseClientManagerTy {
-  explicit ClientManagerTy(bool Protobuf);
+  explicit ClientManagerTy(SerializerType Type);
 };
 
 class ProtobufClientTy final : public ClientTy {

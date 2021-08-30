@@ -6,13 +6,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <utility>
+#include "Serializer.h"
 
 namespace transport::ucx {
 
-ClientManagerTy::ClientManagerTy(bool Protobuf) {
+ClientManagerTy::ClientManagerTy(SerializerType Type) {
   ManagerConfigTy Config;
   for (auto &ConnectionConfig : Config.ConnectionConfigs) {
-    if (Protobuf)
+    if (Type == SerializerType::Protobuf)
       Clients.emplace_back(
           (BaseClientTy *)new ProtobufClientTy(ConnectionConfig));
     else
@@ -21,11 +22,20 @@ ClientManagerTy::ClientManagerTy(bool Protobuf) {
   }
 }
 
-ClientTy::ClientTy(ConnectionConfigTy Config)
-    : Config(std::move(Config)) {}
+ClientTy::ClientTy(ConnectionConfigTy Config, SerializerType Type)
+    : Config(std::move(Config)) {
+  switch (Type) {
+  case SerializerType::Custom:
+    Serializer = (SerializerTy *) new CustomSerializerTy();
+    break;
+  case SerializerType::Protobuf:
+    Serializer = (SerializerTy *) new ProtobufSerializerTy();
+    break;
+  }
+}
 
 ProtobufClientTy::ProtobufClientTy(const ConnectionConfigTy &Config)
-    : ClientTy(Config) {}
+    : ClientTy(Config, SerializerType::Protobuf) {}
 
 int32_t ProtobufClientTy::getNumberOfDevices() {
   CLIENT_DBG("Getting number of devices")
@@ -336,30 +346,27 @@ int32_t ProtobufClientTy::runTargetTeamRegion(int32_t DeviceId,
 
 void ProtobufClientTy::shutdown() {}
 
+////////////////////////////////////////////////////////////////////////////////
+
 CustomClientTy::CustomClientTy(const ConnectionConfigTy &Config)
-    : ClientTy(Config) {}
+    : ClientTy(Config, SerializerType::Custom) {}
 
 int32_t CustomClientTy::getNumberOfDevices() {
   auto InterfaceIdx = getInterfaceIdx();
   Interfaces[InterfaceIdx]->send(MessageKind::GetNumberOfDevices,
-                                 std::string("0"));
+                                 Serializer->EmptyMessage());
 
   if (!Interfaces[InterfaceIdx]->EP.Connected)
     return 0;
 
-  transport::ucx::custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
-  dump(Response.Message.data(), Response.Message.data()+Response.Message.size());
-  return Response.Value;
+  return Serializer->I32(Interfaces[InterfaceIdx]->receive().second);
 }
 
 int32_t CustomClientTy::registerLib(__tgt_bin_desc *Description) {
   auto InterfaceIdx = getInterfaceIdx();
 
-  ucx::custom::TargetBinaryDescription TBD(Description);
-  dump(TBD.Message.data(), TBD.Message.data()+TBD.Message.size());
-
   Interfaces[InterfaceIdx]->send(MessageKind::RegisterLib,
-                                 TBD.Message);
+                                 Serializer->TargetBinaryDescription(Description));
   Interfaces[InterfaceIdx]->receive();
   return 0;
 }
@@ -368,7 +375,7 @@ int32_t CustomClientTy::unregisterLib(__tgt_bin_desc *Description) {
   auto InterfaceIdx = getInterfaceIdx();
 
   Interfaces[InterfaceIdx]->send(MessageKind::UnregisterLib,
-                                 std::string("0"));
+                                 Serializer->EmptyMessage());
   Interfaces[InterfaceIdx]->receive();
 
   return 0;
@@ -377,31 +384,27 @@ int32_t CustomClientTy::unregisterLib(__tgt_bin_desc *Description) {
 int32_t CustomClientTy::isValidBinary(__tgt_device_image *Image) {
   auto InterfaceIdx = getInterfaceIdx();
   Interfaces[InterfaceIdx]->send(MessageKind::IsValidBinary,
-                                 transport::ucx::custom::Pointer((uintptr_t) Image).Message);
+                                 Serializer->Pointer((uintptr_t) Image));
 
-  transport::ucx::custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
-  return Response.Value;
+
+  return Serializer->I32(Interfaces[InterfaceIdx]->receive().second);
 }
 
 int32_t CustomClientTy::initDevice(int32_t DeviceId) {
   auto InterfaceIdx = getInterfaceIdx();
 
-  Interfaces[InterfaceIdx]->send(MessageKind::InitDevice, transport::ucx::custom::I32(DeviceId).Message);
+  Interfaces[InterfaceIdx]->send(MessageKind::InitDevice, Serializer->I32(DeviceId));
 
-  transport::ucx::custom::I32 Response(Interfaces[InterfaceIdx]->receive().second);
-  return Response.Value;
+  return Serializer->I32(Interfaces[InterfaceIdx]->receive().second);
 }
 
 int64_t CustomClientTy::initRequires(int64_t RequiresFlags) {
-  custom::I64 Request(RequiresFlags);
   auto InterfaceIdx = getInterfaceIdx();
 
   Interfaces[InterfaceIdx]->send(MessageKind::InitRequires,
-                                 Request.Message);
+                                 Serializer->I64(RequiresFlags));
 
-  custom::I64 Response(Interfaces[InterfaceIdx]->receive().second);
-
-  return Response.Value;
+  return Serializer->I64(Interfaces[InterfaceIdx]->receive().second);
 }
 
 __tgt_target_table *CustomClientTy::loadBinary(int32_t DeviceId,

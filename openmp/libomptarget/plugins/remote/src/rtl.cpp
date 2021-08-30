@@ -34,10 +34,10 @@ __attribute__((constructor(101))) void initRPC() {
     auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
     if (!Serialization || !strcmp(Serialization, "Custom"))
       Manager =
-          (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(false);
+          (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(transport::ucx::SerializerType::Custom);
     else if (!strcmp(Serialization, "Protobuf"))
       Manager =
-          (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(true);
+          (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(transport::ucx::SerializerType::Protobuf);
     else
       ERR("Invalid Serialization");
   } else
