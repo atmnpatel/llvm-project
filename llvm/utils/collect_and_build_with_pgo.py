@@ -44,7 +44,7 @@ def _run_benchmark(env, out_dir, include_debug_info):
     # paths a fair amount, though the `if (stuff_is_broken) { diag() ... }`
     # branches should still heavily be weighted in the not-taken direction,
     # since we built all of LLVM/etc).
-    _build_things_in(env, out_dir, what=['check-llvm', 'check-clang'])
+    _build_things_in(env, out_dir, what=['check-llvm', 'check-clang'], check=False)
 
     # Building tblgen gets us coverage; don't skip it. (out_dir may also not
     # have them anyway, but that's less of an issue)
@@ -230,9 +230,9 @@ def _get_cmake_invocation_for_bootstrap_from(env, out_dir,
     return cmake
 
 
-def _build_things_in(env, target_dir, what):
+def _build_things_in(env, target_dir, what, check=True):
     cmd = env.get_make_command() + what
-    env.run_command(cmd, cwd=target_dir, check=True)
+    env.run_command(cmd, cwd=target_dir, check=check)
 
 
 def _run_fresh_cmake(env, cmake, target_dir):
@@ -252,6 +252,11 @@ def _run_fresh_cmake(env, cmake, target_dir):
 def _build_stage1_clang(env):
     target_dir = env.output_subdir('stage1')
     cmake = _get_default_cmake_invocation(env)
+    cmake.add_new_flag("LLVM_CCACHE_BUILD", "ON")
+    cmake.add_new_flag("CMAKE_CXX_COMPILER", "clang++")
+    cmake.add_new_flag("CMAKE_C_COMPILER", "clang")
+    cmake.add_new_flag("LLVM_ENABLE_LLD", "ON")
+    cmake.add_new_flag("LLVM_TARGETS_TO_BUILD", "X86;NVPTX")
     _run_fresh_cmake(env, cmake, target_dir)
     _build_things_in(env, target_dir, what=['clang', 'llvm-profdata', 'profile'])
     return target_dir
@@ -277,6 +282,9 @@ def _build_instrumented_clang(env, stage1_dir):
     target_dir = os.path.join(env.output_dir, 'instrumented')
     cmake = _get_cmake_invocation_for_bootstrap_from(env, stage1_dir)
     cmake.add_new_flag('LLVM_BUILD_INSTRUMENTED', 'IR')
+    cmake.add_new_flag("LLVM_CCACHE_BUILD", "ON")
+    cmake.add_new_flag("LLVM_ENABLE_LLD", "ON")
+    cmake.add_new_flag("LLVM_TARGETS_TO_BUILD", "X86;NVPTX;")
 
     # libcxx's configure step messes with our link order: we'll link
     # libclang_rt.profile after libgcc, and the former requires atexit from the
@@ -300,6 +308,12 @@ def _build_optimized_clang(env, stage1_dir, profdata_file):
     target_dir = os.path.join(env.output_dir, 'optimized')
     cmake = _get_cmake_invocation_for_bootstrap_from(env, stage1_dir)
     cmake.add_new_flag('LLVM_PROFDATA_FILE', os.path.abspath(profdata_file))
+    cmake.add_new_flag('LLVM_ENABLE_LTO', 'Thin')
+    cmake.add_new_flag('CMAKE_RANLIB', '/home/apatel/dev/llvm-project/build/default/bin/llvm-ranlib')
+    cmake.add_new_flag('CMAKE_AR', '/home/apatel/dev/llvm-project/build/default/bin/llvm-ar')
+    cmake.add_new_flag('LLVM_ENABLE_LLD', 'ON')
+    cmake.add_new_flag("LLVM_CCACHE_BUILD", "ON")
+    cmake.add_new_flag("LLVM_TARGETS_TO_BUILD", "X86;NVPTX")
 
     # We'll get complaints about hash mismatches in `main` in tools/etc. Ignore
     # it.
