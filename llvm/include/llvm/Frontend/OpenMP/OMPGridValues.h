@@ -114,6 +114,16 @@ static constexpr GV NVPTXGridValues = {
     128,  // GV_Default_WG_Size
 };
 
+/// For Virtual GPUs
+static constexpr GV VirtualGpuGridValues = {
+    256,  // GV_Slot_Size
+    32,   // GV_Warp_Size
+    1024, // GV_Max_Teams
+    896,  // GV_SimpleBufferSize
+    1024, // GV_Max_WG_Size
+    128,  // GV_Defaut_WG_Size
+};
+
 } // namespace omp
 } // namespace llvm
 

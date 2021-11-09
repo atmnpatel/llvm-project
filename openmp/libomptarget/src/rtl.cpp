@@ -34,6 +34,7 @@ static const char *RTLNames[] = {
     /* SX-Aurora VE target  */ "libomptarget.rtl.ve.so",
     /* AMDGPU target        */ "libomptarget.rtl.amdgpu.so",
     /* Remote target        */ "libomptarget.rtl.rpc.so",
+    /* Virtual GPU target   */ "libomptarget.rtl.vgpu.so",
 };
 
 PluginManager *PM;
@@ -83,7 +84,13 @@ void RTLsTy::LoadRTLs() {
   // is correct and if they are supporting any devices.
   for (auto *Name : RTLNames) {
     DP("Loading library '%s'...\n", Name);
-    void *dynlib_handle = dlopen(Name, RTLD_NOW);
+
+    int Flags = RTLD_NOW;
+
+    if (strcmp(Name, "libomptarget.rtl.vgpu.so") == 0)
+      Flags |= RTLD_GLOBAL;
+
+    void *dynlib_handle = dlopen(Name, Flags);
 
     if (!dynlib_handle) {
       // Library does not exist or cannot be found.

@@ -17,6 +17,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Frontend/OpenMP/OMPGridValues.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/X86TargetParser.h"
 
@@ -39,6 +40,28 @@ static const unsigned X86AddrSpaceMap[] = {
     0,   // sycl_global_device
     0,   // sycl_global_host
     0,   // sycl_local
+    0,   // sycl_private
+    270, // ptr32_sptr
+    271, // ptr32_uptr
+    272  // ptr64
+};
+
+static const unsigned X86VGPUAddrSpaceMap[] = {
+    0,   // Default
+    1,   // opencl_global
+    3,   // opencl_local
+    4,   // opencl_constant
+    0,   // opencl_private
+    0,   // opencl_generic
+    1,   // opencl_global_device
+    1,   // opencl_global_host
+    1,   // cuda_device
+    4,   // cuda_constant
+    3,   // cuda_shared
+    1,   // sycl_global
+    0,   // sycl_global_device
+    0,   // sycl_global_host
+    3,   // sycl_local
     0,   // sycl_private
     270, // ptr32_sptr
     271, // ptr32_uptr
@@ -161,6 +184,9 @@ public:
         getTriple().isOSWindows() && getTriple().isOSBinFormatCOFF();
     if (IsWinCOFF)
       MaxVectorAlign = MaxTLSAlign = 8192u * getCharWidth();
+
+    if (Triple.getVendor() == llvm::Triple::OpenMP_VGPU)
+      AddrSpaceMap = &X86VGPUAddrSpaceMap;
   }
 
   const char *getLongDoubleMangling() const override {
@@ -386,6 +412,10 @@ public:
 
   uint64_t getPointerAlignV(unsigned AddrSpace) const override {
     return getPointerWidthV(AddrSpace);
+  }
+
+  const llvm::omp::GV &getGridValue() const override {
+    return llvm::omp::VirtualGpuGridValues;
   }
 };
 

@@ -162,7 +162,8 @@ public:
     Mesa,
     SUSE,
     OpenEmbedded,
-    LastVendorType = OpenEmbedded
+    OpenMP_VGPU,
+    LastVendorType = OpenMP_VGPU
   };
   enum OSType {
     UnknownOS,

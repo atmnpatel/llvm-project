@@ -43,6 +43,9 @@
 #include "llvm/Transforms/Utils/CallGraphUpdater.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
 
+#include <unordered_map>
+#include <vector>
+
 using namespace llvm;
 using namespace omp;
 

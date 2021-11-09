@@ -30,21 +30,19 @@ __attribute__((used, weak, optnone)) void keepAlive() {
 
 namespace impl {
 
-/// AMDGCN Implementation
+/// Generic Implementation - AMDGCN, Virtual
 ///
 ///{
-#pragma omp begin declare variant match(device = {arch(amdgcn)})
 
 void Unpack(uint64_t Val, uint32_t *LowBits, uint32_t *HighBits) {
-  *LowBits = (uint32_t)(Val & UINT64_C(0x00000000FFFFFFFF));
-  *HighBits = (uint32_t)((Val & UINT64_C(0xFFFFFFFF00000000)) >> 32);
+  *LowBits = (uint32_t)(Val & static_cast<uint64_t>(0x00000000FFFFFFFF));
+  *HighBits =
+      (uint32_t)((Val & static_cast<uint64_t>(0xFFFFFFFF00000000)) >> 32);
 }
 
 uint64_t Pack(uint32_t LowBits, uint32_t HighBits) {
   return (((uint64_t)HighBits) << 32) | (uint64_t)LowBits;
 }
-
-#pragma omp end declare variant
 
 /// NVPTX Implementation
 ///
@@ -109,6 +107,26 @@ int32_t shuffleDown(uint64_t Mask, int32_t Var, uint32_t Delta, int32_t Width) {
 
 #pragma omp end declare variant
 } // namespace impl
+
+/// Virtual GPU Implementation
+///
+///{
+#pragma omp begin declare variant match(                                       \
+    device = {arch(x86, x86_64)}, implementation = {extension(match_any)})
+
+#include "ThreadEnvironment.h"
+namespace impl {
+
+int32_t shuffle(uint64_t Mask, int32_t Var, int32_t SrcLane) {
+  return getThreadEnvironment()->shuffle(Var, SrcLane);
+}
+
+int32_t shuffleDown(uint64_t Mask, int32_t Var, uint32_t Delta, int32_t Width) {
+  return getThreadEnvironment()->shuffleDown(Var, Delta);
+}
+
+} // namespace impl
+#pragma omp end declare variant
 
 uint64_t utils::pack(uint32_t LowBits, uint32_t HighBits) {
   return impl::Pack(LowBits, HighBits);

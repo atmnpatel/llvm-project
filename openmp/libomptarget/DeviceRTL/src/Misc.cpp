@@ -16,10 +16,9 @@
 namespace _OMP {
 namespace impl {
 
-/// AMDGCN Implementation
+/// Generic Implementation - AMDGCN, VGPU
 ///
 ///{
-#pragma omp begin declare variant match(device = {arch(amdgcn)})
 
 double getWTick() { return ((double)1E-9); }
 
@@ -30,8 +29,6 @@ double getWTime() {
   // timer but resolves the undefined symbol at link time.
   return 0;
 }
-
-#pragma omp end declare variant
 
 /// NVPTX Implementation
 ///

@@ -270,3 +270,69 @@ foreach(sm ${nvptx_sm_list})
   # Install bitcode library under the lib destination folder.
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name} DESTINATION "${OPENMP_INSTALL_LIBDIR}")
 endforeach()
+
+set(bc_flags -S -x c++ -std=c++20
+              ${clang_opt_flags}
+             -target x86_64-vgpu
+             -Xclang -emit-llvm-bc
+             -Xclang -aux-triple -Xclang ${aux_triple}
+             -fopenmp -fopenmp-cuda-mode -Xclang -fopenmp-is-device
+             -Xclang -target-feature 
+             -I${include_directory}
+             -I${devicertl_base_directory}/../include
+             -I${devicertl_base_directory}/../plugins/vgpu/src
+             ${LIBOMPTARGET_LLVM_INCLUDE_DIRS_DEVICERTL}
+             -stdlib=libc++
+)
+
+add_custom_target(omptarget-vgpu-bc)
+
+set(bc_files "")
+foreach(src ${src_files})
+  get_filename_component(infile ${src} ABSOLUTE)
+  get_filename_component(outfile ${src} NAME)
+  set(outfile "${outfile}-vgpu.bc")
+
+  add_custom_command(OUTPUT ${outfile}
+    COMMAND ${cuda_compiler} ${bc_flags}
+      ${infile} -o ${outfile}
+    DEPENDS ${infile}
+    IMPLICIT_DEPENDS CXX ${infile}
+    COMMENT "Building LLVM bitcode ${outfile}"
+    VERBATIM
+  )
+  set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${outfile})
+
+  list(APPEND bc_files ${outfile})
+endforeach()
+
+set(bclib_name "libomptarget-x86_64-vgpu.bc")
+
+# Link to a bitcode library.
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
+    COMMAND ${bc_linker}
+      -o ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name} ${bc_files}
+    DEPENDS ${bc_files}
+    COMMENT "Linking LLVM bitcode ${bclib_name}"
+)
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}_opt
+    COMMAND ${opt}
+      -O1 -o ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name} ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
+    COMMENT "Optimizing LLVM bitcode ${bclib_name}"
+)
+set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${bclib_name})
+
+set(bclib_target_name "omptarget-x86_64-vgpu-bc")
+
+add_custom_target(${bclib_target_name} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}_opt)
+add_dependencies(omptarget-vgpu-bc ${bclib_target_name})
+
+# Copy library to destination.
+add_custom_command(TARGET ${bclib_target_name} POST_BUILD
+                  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
+                  ${LIBOMPTARGET_LIBRARY_DIR})
+
+# Install bitcode library under the lib destination folder.
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name} DESTINATION "${OPENMP_INSTALL_LIBDIR}")

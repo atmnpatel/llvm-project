@@ -107,6 +107,22 @@ void __kmpc_target_deinit(IdentTy *Ident, int8_t Mode, bool) {
   state::ParallelRegionFn = nullptr;
 }
 
+#pragma omp begin declare variant match(                                       \
+    device = {arch(x86, x86_64)}, implementation = {extension(match_any)})
+void __kmpc_target_deinit(IdentTy *Ident, int8_t Mode, bool) {
+  const bool IsSPMD = Mode & OMP_TGT_EXEC_MODE_SPMD;
+  state::assumeInitialState(IsSPMD);
+  if (IsSPMD)
+    return;
+
+  // Signal the workers to exit the state machine and exit the kernel.
+  state::ParallelRegionFn = nullptr;
+
+  synchronize::threads();
+}
+
+#pragma omp end declare variant
+
 int8_t __kmpc_is_spmd_exec_mode() { return mapping::isSPMDMode(); }
 }
 

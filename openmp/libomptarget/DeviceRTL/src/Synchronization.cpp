@@ -214,6 +214,71 @@ void setLock(omp_lock_t *Lock) {
 
 } // namespace impl
 
+/// Virtual GPU Implementation
+///
+///{
+#pragma omp begin declare variant match(                                       \
+    device = {arch(x86, x86_64)}, implementation = {extension(match_any)})
+
+#include "ThreadEnvironment.h"
+namespace impl {
+
+uint32_t atomicInc(uint32_t *Address, uint32_t Val, int Ordering) {
+  return VGPUImpl::atomicInc(Address, Val, Ordering);
+}
+
+void namedBarrierInit() {}
+
+void namedBarrier() {
+  uint32_t NumThreads = omp_get_num_threads();
+  ASSERT(NumThreads % mapping::getWarpSize() == 0);
+  getThreadEnvironment()->namedBarrier(true);
+}
+
+void fenceTeam(int) { getThreadEnvironment()->fenceTeam(); }
+
+void fenceKernel(int memory_order) {
+  getThreadEnvironment()->fenceKernel(memory_order);
+}
+
+// Simply call fenceKernel because there is no need to sync with host
+void fenceSystem(int) { fenceKernel(0); }
+
+void syncWarp(__kmpc_impl_lanemask_t Mask) {
+  getThreadEnvironment()->syncWarp();
+}
+
+void syncThreads() { getThreadEnvironment()->namedBarrier(false); }
+
+constexpr uint32_t OMP_SPIN = 1000;
+constexpr uint32_t UNSET = 0;
+constexpr uint32_t SET = 1;
+
+// TODO: This seems to hide a bug in the declare variant handling. If it is
+// called before it is defined
+//       here the overload won't happen. Investigate lalter!
+void unsetLock(omp_lock_t *Lock) {
+  (void)atomicExchange((uint32_t *)Lock, UNSET, __ATOMIC_SEQ_CST);
+}
+
+int testLock(omp_lock_t *Lock) {
+  return atomicAdd((uint32_t *)Lock, 0u, __ATOMIC_SEQ_CST);
+}
+
+void initLock(omp_lock_t *Lock) { unsetLock(Lock); }
+
+void destoryLock(omp_lock_t *Lock) { unsetLock(Lock); }
+
+void setLock(omp_lock_t *Lock) {
+  VGPUImpl::setLock((uint32_t *)Lock, UNSET, SET, OMP_SPIN,
+                    mapping::getBlockId(), atomicCAS);
+}
+
+} // namespace impl
+
+#pragma omp end declare variant
+///}
+
 void synchronize::init(bool IsSPMD) {
   if (!IsSPMD)
     impl::namedBarrierInit();

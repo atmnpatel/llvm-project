@@ -159,10 +159,85 @@ uint32_t getNumberOfWarpsInBlock() {
 #pragma omp end declare variant
 ///}
 
-uint32_t getWarpSize() { return getGridValue().GV_Warp_Size; }
+} // namespace impl
+} // namespace _OMP
+
+/// Virtual GPU Implementation
+///
+///{
+#pragma omp begin declare variant match(device = {kind(CPU)})
+
+#include "ThreadEnvironment.h"
+
+namespace _OMP {
+namespace impl {
+
+constexpr const llvm::omp::GV &getGridValue() {
+  return llvm::omp::VirtualGpuGridValues;
+}
+
+LaneMaskTy activemask() {
+  uint64_t B = 0;
+  uint32_t N = mapping::getWarpSize();
+  while (N)
+    B |= (1 << (--N));
+  return B;
+}
+
+LaneMaskTy lanemaskLT() {
+  const uint32_t Lane = mapping::getThreadIdInWarp();
+  LaneMaskTy Ballot = mapping::activemask();
+  LaneMaskTy Mask = ((LaneMaskTy)1 << Lane) - (LaneMaskTy)1;
+  return Mask & Ballot;
+}
+
+LaneMaskTy lanemaskGT() {
+  const uint32_t Lane = mapping::getThreadIdInWarp();
+  if (Lane == (mapping::getWarpSize() - 1))
+    return 0;
+  LaneMaskTy Ballot = mapping::activemask();
+  LaneMaskTy Mask = (~((LaneMaskTy)0)) << (Lane + 1);
+  return Mask & Ballot;
+}
+
+uint32_t getThreadIdInWarp() {
+  return mapping::getThreadIdInBlock() & (mapping::getWarpSize() - 1);
+}
+
+uint32_t getThreadIdInBlock() {
+  return getThreadEnvironment()->getThreadIdInBlock();
+}
+
+uint32_t getBlockSize() { return getThreadEnvironment()->getBlockSize(); }
+
+uint32_t getKernelSize() { return getThreadEnvironment()->getKernelSize(); }
+
+uint32_t getBlockId() { return getThreadEnvironment()->getBlockId(); }
+
+uint32_t getNumberOfBlocks() {
+  return getThreadEnvironment()->getNumberOfBlocks();
+}
+
+uint32_t getNumberOfProcessorElements() { return mapping::getBlockSize(); }
+
+uint32_t getWarpId() {
+  return mapping::getThreadIdInBlock() / mapping::getWarpSize();
+}
+
+uint32_t getWarpSize() { return getThreadEnvironment()->getWarpSize(); }
+
+uint32_t getNumberOfWarpsInBlock() {
+  return (mapping::getBlockSize() + mapping::getWarpSize() - 1) /
+         mapping::getWarpSize();
+}
 
 } // namespace impl
 } // namespace _OMP
+
+#pragma omp end declare variant
+///}
+
+uint32_t getWarpSize() { return getGridValue().GV_Warp_Size; }
 
 bool mapping::isMainThreadInGenericMode(bool IsSPMD) {
   if (IsSPMD || icv::Level)
