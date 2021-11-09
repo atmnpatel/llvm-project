@@ -237,5 +237,10 @@ __attribute__((noinline)) uint32_t __kmpc_get_hardware_thread_id_in_block() {
 __attribute__((noinline)) uint32_t __kmpc_get_hardware_num_threads_in_block() {
   return mapping::getNumberOfProcessorElements();
 }
+
+__attribute__((noinline)) uint32_t __kmpc_get_warp_size() {
+  FunctionTracingRAII();
+  return impl::getWarpSize();
+}
 }
 #pragma omp end declare target
