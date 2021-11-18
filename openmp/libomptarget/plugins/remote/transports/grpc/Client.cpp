@@ -234,7 +234,6 @@ void *ClientTy::dataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr) {
       [&](auto &RPCStatus, auto &Context) {
         auto *Reply = protobuf::Arena::CreateMessage<transport::messages::Pointer>(Arena.get());
         auto *Request = protobuf::Arena::CreateMessage<transport::messages::AllocData>(Arena.get());
-
         Request->set_device_id(DeviceId);
         Request->set_size(Size);
         Request->set_hst_ptr((uint64_t)HstPtr);

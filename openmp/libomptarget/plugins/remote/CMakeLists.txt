@@ -35,8 +35,8 @@ if (Protobuf_FOUND AND gRPC_FOUND AND PROTOC AND GRPC_CPP_PLUGIN)
     file(MAKE_DIRECTORY ${directory})
     execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${directory})
     execute_process(
-            COMMAND env LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/apatel/anl/grpc/build/install/lib protoc --cpp_out=${directory} -I ${SERIALIZATION_DIR} ${SERIALIZATION_DIR}/messages.proto  ${SERIALIZATION_DIR}/grpc.proto
-            COMMAND env LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/apatel/anl/grpc/build/install/lib protoc --grpc_out=${directory} -I ${SERIALIZATION_DIR} ${SERIALIZATION_DIR}/grpc.proto --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
+            COMMAND protoc --cpp_out=${directory} -I ${SERIALIZATION_DIR} ${SERIALIZATION_DIR}/messages.proto  ${SERIALIZATION_DIR}/grpc.proto
+            COMMAND protoc --grpc_out=${directory} -I ${SERIALIZATION_DIR} ${SERIALIZATION_DIR}/grpc.proto --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
     )
 
     set(GRPC_SRC_FILES

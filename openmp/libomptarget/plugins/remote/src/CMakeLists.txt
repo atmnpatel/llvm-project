@@ -60,6 +60,7 @@ target_link_libraries(omptarget.rtl.remote PRIVATE
         "-L ${UCX_DIR}/lib"
         ${OPENMP_PTHREAD_LIB}
         "-fopenmp"
+        "-O3"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
         )
 

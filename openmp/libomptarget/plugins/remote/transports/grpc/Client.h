@@ -23,7 +23,6 @@
 #include <mutex>
 #include <numeric>
 #include "grpc.grpc.pb.h"
-
 #include "../../src/BaseClient.h"
 
 using grpc::Channel;

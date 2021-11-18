@@ -1,7 +1,6 @@
 #include "Base.h"
 #include "BaseClient.h"
 #include "Serialization.h"
-#include "Serializer.h"
 #include "Utils.h"
 #include "omptarget.h"
 #include <cstddef>
@@ -10,6 +9,7 @@
 #include <cstring>
 #include <memory>
 #include <type_traits>
+#include "Serializer.h"
 
 namespace transport::ucx {
 
@@ -40,14 +40,30 @@ protected:
     } else {
      */
 
-    uint64_t MsgTag = ((uint64_t)Kind << 60) | Tag;
-    Tag++;
-    Interface->EP.send(MsgTag, Message);
-    return Interface->Worker.receive(MsgTag).second;
+    Interfaces[0]->send(Kind, Message);
+    return Interfaces[0]->receive().second;
   }
 
 public:
   ClientTy(ConnectionConfigTy Config, SerializerType Type);
+  ConnectionConfigTy Config;
+  std::map<std::thread::id, size_t> InterfaceId;
+  std::vector<std::unique_ptr<Base::InterfaceTy>> Interfaces;
+
+  size_t getInterfaceIdx() {
+    std::stringstream SS;
+    SS << std::this_thread::get_id();
+
+    if (!InterfaceId.contains(std::this_thread::get_id())) {
+      auto Interface = std::make_unique<InterfaceTy>(Context, Config);
+      Interfaces.push_back(std::move(Interface));
+      InterfaceId[std::this_thread::get_id()] = Interfaces.size() - 1;
+    }
+
+    auto NextInterfaceIdx = InterfaceId[std::this_thread::get_id()];
+    return NextInterfaceIdx;
+  }
+
 
   int32_t registerLib(__tgt_bin_desc *Desc) override;
   int32_t unregisterLib(__tgt_bin_desc *Desc) override;
@@ -78,7 +94,7 @@ public:
                               int32_t ThreadLimit,
                               uint64_t LoopTripCount) override;
 
-  void shutdown() override;
+    void shutdown() override;
 };
 
 struct ClientManagerTy final : public BaseClientManagerTy {

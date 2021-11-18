@@ -17,6 +17,7 @@
 #include "Debug.h"
 #include "omptarget.h"
 #include "rtl.h"
+#include <messages.pb.h>
 #include <string>
 
 namespace transport::grpc {

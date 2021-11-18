@@ -56,4 +56,7 @@ target_link_libraries(openmp-offloading-server PRIVATE
         "-fopenmp"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
         omptarget
+        absl::synchronization
+        ${OPENMP_PTHREAD_LIB}
+        "-O3"
         )

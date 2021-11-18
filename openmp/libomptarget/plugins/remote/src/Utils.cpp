@@ -1,4 +1,5 @@
 #include "BaseUtils.h"
+#include <messages.pb.h>
 
 void loadTargetBinaryDescription(const __tgt_bin_desc *Desc,
                                  transport::messages::TargetBinaryDescription &Request) {

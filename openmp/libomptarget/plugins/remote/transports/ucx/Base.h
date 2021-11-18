@@ -14,6 +14,11 @@
 
 namespace transport::ucx {
 
+struct ServerContextTy {
+  std::vector<ucp_conn_request_h> ConnRequests;
+  ucp_listener_h Listener;
+};
+
 class ContextTy {
   ucp_context_h Context;
 
@@ -25,6 +30,7 @@ public:
 };
 
 class WorkerTy {
+  bool Initialized = false;
   ucp_worker_h Worker;
 
   /// Callback to execute when message has been received
@@ -43,11 +49,19 @@ class WorkerTy {
     Ctx->Complete = 1;
   }
 
-public:
-  WorkerTy(ucp_context_h *Context);
-  ~WorkerTy();
+  /// Initialize context if not already initialized
+  void initialize(ucp_context_h *Context);
 
-  RecvFutureTy asyncRecv(RecvTaskTy &Task);
+  ///
+  void wait(RequestStatus *Request);
+
+public:
+  WorkerTy() = default;
+  WorkerTy(ucp_context_h *Context);
+
+  WorkerTy(const WorkerTy &OldWorker);
+
+  ~WorkerTy();
 
   std::pair<MessageKind, std::string> receive(uint64_t Tag);
 
@@ -78,9 +92,7 @@ public:
   EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest);
   EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config);
 
-  SendFutureTy asyncSend(SendTaskTy &Task);
-
-  void send(uint64_t Tag, std::string &Message);
+  SendFutureTy asyncSend(uint64_t Tag, const char *Message, size_t Size);
 
   /* Helper Functions */
   operator ucp_ep_h() { return EP; }
@@ -88,185 +100,31 @@ public:
 };
 
 struct Base {
+  ///
+  ContextTy Context;
+
+  Base() = default;
+  virtual ~Base() = default;
+
+  std::mutex GMtx;
+
   struct InterfaceTy {
     WorkerTy Worker;
     EndpointTy EP;
+    ConnectionConfigTy Config;
 
-    std::atomic<uint64_t> LastRecvTag = 0;
+    std::atomic<uint64_t> LastSendTag = 0, LastRecvTag = 0;
 
     InterfaceTy(ContextTy &Context, const ConnectionConfigTy &Config);
     InterfaceTy(ContextTy &Context, ucp_conn_request_h ConnRequest);
     ~InterfaceTy();
+
+
+    void send(MessageKind Type, std::string Message, bool IsServer = false);
+
+    void await(SendFutureTy Future);
+
+    std::pair<MessageKind, std::string> receive();
   };
-
-  ///
-  ContextTy Context;
-
-  std::atomic<bool> Running = true;
-  std::thread WorkerThread;
-  std::condition_variable WorkAvailable;
-  std::condition_variable WorkDone;
-  std::mutex WorkDoneMtx;
-
-  bool MultiThreaded = false;
-
-  InterfaceTy *Interface;
-
-  struct SendTaskQueueTy {
-    std::queue<SendTaskTy> Queue;
-    uint64_t Tag = 0;
-    std::mutex Mtx;
-
-    bool empty() {
-      std::lock_guard Guard(Mtx);
-      return Queue.empty();
-    }
-
-    bool unsafe_empty() { return Queue.empty(); }
-
-    uint64_t emplace_back(MessageKind Kind, std::string Buffer,
-                          std::atomic<bool> *IsCompleted) {
-      std::lock_guard Guard(Mtx);
-      uint64_t MsgTag = ((uint64_t)Kind << 60) | Tag;
-      Queue.emplace(Kind, Buffer, IsCompleted, MsgTag);
-      Tag++;
-      return MsgTag;
-    }
-
-    SendTaskTy &front() { return Queue.front(); }
-
-    void pop() { Queue.pop(); }
-  } SendTaskQueue;
-
-  struct RecvTaskQueueTy {
-    std::queue<RecvTaskTy> Queue;
-    std::mutex Mtx;
-
-    bool empty() {
-      std::lock_guard Guard(Mtx);
-      return Queue.empty();
-    }
-
-    bool unsafe_empty() { return Queue.empty(); }
-
-    void emplace(uint64_t Tag, std::string *Message,
-                 std::atomic<bool> *IsCompleted, uint64_t *TagHandle) {
-      std::lock_guard Guard(Mtx);
-      Queue.emplace(Tag, Message, IsCompleted, TagHandle);
-    }
-
-    RecvTaskTy &front() { return Queue.front(); }
-
-    void pop() { Queue.pop(); }
-
-  } RecvTaskQueue;
-
-  SendFutureHandleTy asyncSend(MessageKind Kind, std::string Buffer) {
-    auto *IsCompleted = new std::atomic<bool>(false);
-    auto Tag = SendTaskQueue.emplace_back(Kind, Buffer, IsCompleted);
-    return SendFutureHandleTy{Tag, IsCompleted};
-  }
-
-  RecvFutureHandleTy asyncRecv(uint64_t Tag) {
-    auto *Message = new std::string();
-    auto *IsCompleted = new std::atomic<bool>(false);
-    auto *TagHandle = new uint64_t(Tag);
-    RecvTaskQueue.emplace(Tag, Message, IsCompleted, TagHandle);
-    return {Message, IsCompleted, TagHandle};
-  }
-
-  std::queue<SendFutureTy> AwaitSendTaskQueue;
-  std::queue<RecvFutureTy> AwaitRecvTaskQueue;
-  std::mutex AwaitSendTaskQueueMtx;
-  std::mutex AwaitRecvTaskQueueMtx;
-
-  std::mutex WorkAvailableMtx;
-
-  bool IsCompleted(SendFutureTy &Future);
-  bool IsCompleted(RecvFutureTy &Future);
-
-  bool isWorkAvailable() {
-    return !SendTaskQueue.Queue.empty() || !RecvTaskQueue.Queue.empty() ||
-           !AwaitRecvTaskQueue.empty() || !AwaitSendTaskQueue.empty();
-  }
-
-  // For Server (tmp)
-  Base() = default;
-
-  void initializeWorkerThread() {
-    WorkerThread = std::thread([&]() {
-      while (Running) {
-        std::unique_lock<std::mutex> UniqueLock(WorkAvailableMtx);
-
-        WorkAvailable.wait(UniqueLock, [&]() {
-          if (!Running)
-            return true;
-
-          return isWorkAvailable();
-        });
-
-        // Worker Thread needs to Exit
-        if (!isWorkAvailable()) {
-          continue;
-        }
-
-        {
-          std::lock_guard Guard(SendTaskQueue.Mtx);
-          while (!SendTaskQueue.unsafe_empty()) {
-            AwaitSendTaskQueue.emplace(
-                Interface->EP.asyncSend(SendTaskQueue.front()));
-            SendTaskQueue.pop();
-          }
-        }
-
-        {
-          std::lock_guard Guard(RecvTaskQueue.Mtx);
-          while (!RecvTaskQueue.unsafe_empty()) {
-            AwaitRecvTaskQueue.emplace(
-                Interface->Worker.asyncRecv(RecvTaskQueue.front()));
-            RecvTaskQueue.pop();
-          }
-        }
-
-        while (ucp_worker_progress(Interface->Worker))
-          ;
-
-        {
-          std::lock_guard Guard(AwaitSendTaskQueueMtx);
-          while (!AwaitSendTaskQueue.empty()) {
-            if (IsCompleted(AwaitSendTaskQueue.front())) {
-              AwaitSendTaskQueue.pop();
-              WorkDone.notify_all();
-            } else
-              break;
-          }
-        }
-
-        {
-          std::lock_guard Guard(AwaitRecvTaskQueueMtx);
-          while (!AwaitRecvTaskQueue.empty()) {
-            if (IsCompleted(AwaitRecvTaskQueue.front())) {
-              AwaitRecvTaskQueue.pop();
-              WorkDone.notify_all();
-            } else
-              break;
-          }
-        }
-
-        ucp_worker_progress(Interface->Worker);
-      }
-    });
-  }
-
-  // For Client
-  Base(const ConnectionConfigTy &Config) {
-    Interface = new InterfaceTy(Context, Config);
-    initializeWorkerThread();
-  }
-
-  virtual ~Base() {
-    if (WorkerThread.joinable())
-      WorkerThread.join();
-  }
 };
 } // namespace transport::ucx

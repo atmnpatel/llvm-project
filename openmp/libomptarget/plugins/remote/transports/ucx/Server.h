@@ -45,45 +45,6 @@ protected:
 
   uint64_t Tag = 0;
 
-  void send(MessageKind Kind, std::string Message) {
-    /*
-    if (!MultiThreaded) {
-    auto SendFuture = asyncSend(Kind, Message);
-
-    WorkAvailable.notify_all();
-
-    std::unique_lock<std::mutex> UniqueLock((WorkDoneMtx));
-    WorkDone.wait(UniqueLock, [&]() {
-      return (bool) (*SendFuture.IsCompleted);
-    });
-
-    if (!Interface->EP.Connected)
-      return;
-    }
-    */
-    uint64_t MsgTag = ((uint64_t)Kind << 60) | Tag;
-    Tag++;
-    Interface->EP.send(MsgTag, Message);
-  }
-
-  std::pair<MessageKind, std::string> recv(uint64_t Tag) {
-    /*
-    if (!MultiThreaded) {
-      auto RecvFuture = asyncRecv(Tag);
-
-      WorkAvailable.notify_all();
-
-      std::unique_lock<std::mutex> UniqueLock((WorkDoneMtx));
-      WorkDone.wait(UniqueLock,
-                    [&]() { return ((bool)*RecvFuture.IsCompleted); });
-
-      return {(MessageKind)(*RecvFuture.Tag >> 60), *RecvFuture.Buffer};
-    }
-     */
-
-    return Interface->Worker.receive(Tag);
-  }
-
 public:
   ServerTy(SerializerType Type);
   ~ServerTy();

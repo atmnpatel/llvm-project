@@ -19,13 +19,16 @@
 #include "device.h"
 #include "omptarget.h"
 #include "rtl.h"
-#include "grpc.grpc.pb.h"
 #include "messages.pb.h"
+#include "grpc.grpc.pb.h"
 
 using grpc::ServerContext;
 using grpc::ServerReader;
 using grpc::ServerWriter;
 using grpc::Status;
+
+using transport::grpc::RemoteOffload;
+using namespace google;
 
 extern PluginManager *PM;
 
@@ -43,7 +46,7 @@ private:
   int DebugLevel;
   uint64_t MaxSize;
   uint64_t BlockSize;
-  std::unique_ptr<google::protobuf::Arena> Arena;
+  std::unique_ptr<protobuf::Arena> Arena;
 
 public:
   RemoteOffloadImpl(uint64_t MaxSize, uint64_t BlockSize)
@@ -51,48 +54,48 @@ public:
     PM->RTLs.BlocklistedRTLs = {"libomptarget.rtl.ucx.so",
                                 "libomptarget.rtl.rpc.so"};
     DebugLevel = getDebugLevel();
-    Arena = std::make_unique<google::protobuf::Arena>();
+    Arena = std::make_unique<protobuf::Arena>();
   }
 
   Status RegisterLib(ServerContext *Context,
-                     const transport::messages::TargetBinaryDescription *Description,
-                     transport::messages::I32 *Reply) override;
-  Status UnregisterLib(ServerContext *Context, const transport::messages::Pointer *Request,
-                       transport::messages::I32 *Reply) override;
+                     const TargetBinaryDescription *Description,
+                     I32 *Reply) override;
+  Status UnregisterLib(ServerContext *Context, const Pointer *Request,
+                       I32 *Reply) override;
 
-  Status IsValidBinary(ServerContext *Context, const transport::messages::Pointer *Image,
-                       transport::messages::I32 *IsValid) override;
-  Status GetNumberOfDevices(ServerContext *Context, const transport::messages::Null *Null,
-                            transport::messages::I32 *NumberOfDevices) override;
+  Status IsValidBinary(ServerContext *Context, const Pointer *Image,
+                       I32 *IsValid) override;
+  Status GetNumberOfDevices(ServerContext *Context, const Null *Null,
+                            I32 *NumberOfDevices) override;
 
-  Status InitDevice(ServerContext *Context, const transport::messages::I32 *DeviceNum,
-                    transport::messages::I32 *Reply) override;
-  Status InitRequires(ServerContext *Context, const transport::messages::I64 *RequiresFlag,
-                      transport::messages::I64 *Reply) override;
+  Status InitDevice(ServerContext *Context, const I32 *DeviceNum,
+                    I32 *Reply) override;
+  Status InitRequires(ServerContext *Context, const I64 *RequiresFlag,
+                      I64 *Reply) override;
 
-  Status LoadBinary(ServerContext *Context, const transport::messages::Binary *Binary,
-                    transport::messages::TargetTable *Reply) override;
+  Status LoadBinary(ServerContext *Context, const Binary *Binary,
+                    TargetTable *Reply) override;
 
-  Status DataAlloc(ServerContext *Context, const transport::messages::AllocData *Request,
-                   transport::messages::Pointer *Reply) override;
+  Status DataAlloc(ServerContext *Context, const AllocData *Request,
+                   Pointer *Reply) override;
 
-  Status DataSubmit(ServerContext *Context, ServerReader<transport::messages::SSubmitData> *Reader,
-                    transport::messages::I32 *Reply) override;
-  Status DataRetrieve(ServerContext *Context, const transport::messages::RetrieveData *Request,
-                      ServerWriter<transport::messages::SData> *Writer) override;
+  Status DataSubmit(ServerContext *Context, ServerReader<SSubmitData> *Reader,
+                    I32 *Reply) override;
+  Status DataRetrieve(ServerContext *Context, const RetrieveData *Request,
+                      ServerWriter<SData> *Writer) override;
 
-  Status DataDelete(ServerContext *Context, const transport::messages::DeleteData *Request,
-                    transport::messages::I32 *Reply) override;
+  Status DataDelete(ServerContext *Context, const DeleteData *Request,
+                    I32 *Reply) override;
 
-  Status RunTargetRegion(ServerContext *Context, const transport::messages::TargetRegion *Request,
-                         transport::messages::I32 *Reply) override;
+  Status RunTargetRegion(ServerContext *Context, const TargetRegion *Request,
+                         I32 *Reply) override;
 
   Status RunTargetTeamRegion(ServerContext *Context,
-                             const transport::messages::TargetTeamRegion *Request,
-                             transport::messages::I32 *Reply) override;
+                             const TargetTeamRegion *Request,
+                             I32 *Reply) override;
 
-  Status Shutdown(ServerContext *Context, const transport::messages::Null *Request,
-                  transport::messages::Null *Reply) override;
+  Status Shutdown(ServerContext *Context, const Null *Request,
+                  Null *Reply) override;
 };
 
 } // namespace transport::grpc

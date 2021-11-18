@@ -43,57 +43,20 @@ struct RequestStatus {
 struct SendFutureTy {
   RequestStatus *Request;
   RequestStatus *Context;
-  std::atomic<bool> *IsCompleted;
+  const char *Message;
   SendFutureTy(RequestStatus *Request, RequestStatus *Context,
-               std::atomic<bool> *IsCompleted)
-      : Request(Request), Context(Context), IsCompleted(IsCompleted) {}
-  SendFutureTy()
-      : Request(nullptr), Context(nullptr), IsCompleted(nullptr) {}
-};
-
-struct SendFutureHandleTy {
-  uint64_t Tag;
-  std::atomic<bool> *IsCompleted;
-};
-
-struct SendTaskTy {
-  char Kind;
-  std::string Buffer;
-  std::atomic<bool> *Completed;
-  uint64_t Tag;
-  SendTaskTy(char Kind, std::string Buffer, std::atomic<bool> *Completed,
-             uint64_t Tag)
-      : Kind(Kind), Buffer(Buffer), Completed(Completed), Tag(Tag) {}
-};
-
-struct RecvTaskTy {
-  uint64_t Tag;
-  std::string *Message;
-  std::atomic<bool> *Completed;
-  uint64_t *TagHandle;
-  RecvTaskTy(uint64_t Tag, std::string *Message, std::atomic<bool> *Completed,
-             uint64_t *TagHandle)
-      : Tag(Tag), Message(Message), Completed(Completed), TagHandle(TagHandle) {
-  }
-};
-
-struct RecvFutureHandleTy {
-  std::string *Buffer;
-  std::atomic<bool> *IsCompleted;
-  uint64_t *Tag;
+               const char *Message)
+      : Request(Request), Context(Context), Message(Message) {}
+  SendFutureTy() : Request(nullptr), Context(nullptr), Message(nullptr) {}
 };
 
 /* Struct to hold the handle for asynchronous transmissions */
-struct RecvFutureTy {
-  char Kind;
+struct ReceiveFutureTy {
   RequestStatus *Request;
-  std::string *Message;
-  std::atomic<bool> *IsCompleted;
-  RecvFutureTy(char Kind, RequestStatus *Request, std::string *Message,
-               std::atomic<bool> *IsCompleted)
-      : Kind(Kind), Request(Request), Message(Message),
-        IsCompleted(IsCompleted) {}
-  RecvFutureTy() : Kind(0), Request(nullptr), Message(nullptr) {}
+  char *Message;
+  ReceiveFutureTy(RequestStatus *Request, char *Message)
+      : Request(Request), Message(Message) {}
+  ReceiveFutureTy() : Request(nullptr), Message(nullptr) {}
 };
 
 extern std::vector<std::string> MessageKindToString;
@@ -120,10 +83,5 @@ const uint16_t IPStringLength = 50;
 
 std::string getIP(const sockaddr_storage *SocketAddress);
 std::string getPort(const sockaddr_storage *SocketAddress);
-
-struct ServerContextTy {
-  std::vector<ucp_conn_request_h> ConnRequests;
-  ucp_listener_h Listener;
-};
 
 } // namespace transport::ucx
