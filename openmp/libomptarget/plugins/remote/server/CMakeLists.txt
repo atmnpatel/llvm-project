@@ -14,17 +14,46 @@ include_directories(${LIBOMPTARGET_SRC_DIR})
 include_directories(${LIBOMPTARGET_INCLUDE_DIR})
 include_directories(${GRPC_INCLUDE_DIR})
 include_directories(${RPC_INCLUDE_DIR})
+include_directories(${TRANSPORTS_DIR})
+include_directories(${UCX_DIR}/include)
+include_directories(${GRPC_DIR}/include)
 
-add_executable(openmp-offloading-server
+set(LLVM_LINK_COMPONENTS
+        Support
+        )
+
+add_llvm_executable(openmp-offloading-server
         ${LIBOMPTARGET_SRC_FILES}
-        ${GRPC_SRC_FILES}
-        ${RPC_SRC_DIR}/Utils.cpp
-        Server.cpp
         OffloadingServer.cpp
-)
+        ${TRANSPORTS_DIR}/grpc/Server.cpp
+        ${TRANSPORTS_DIR}/ucx/Server.cpp
+        ${TRANSPORTS_DIR}/ucx/Base.cpp
+        ${TRANSPORTS_DIR}/ucx/Serialization.cpp
+        ${TRANSPORTS_DIR}/ucx/Serializer.cpp
+        ${TRANSPORTS_DIR}/ucx/Utils.cpp
+        ${GRPC_SRC_FILES}
+        ../src/Utils.cpp
+        )
 
-target_link_libraries(openmp-offloading-server
-        grpc++
+llvm_update_compile_flags(openmp-offloading-server)
+
+target_compile_features(openmp-offloading-server PRIVATE cxx_std_20)
+
+add_dependencies(openmp-offloading-server omptarget)
+
+target_link_directories(openmp-offloading-server PRIVATE ${OPENMP_INSTALL_LIBDIR})
+
+target_link_libraries(openmp-offloading-server PRIVATE
         protobuf
+        grpc++
+        dl
+        ucp
+        ucs
+        uct
+        "-L ${GRPC_DIR}/lib"
+        "-L ${UCX_DIR}/lib"
         ${OPENMP_PTHREAD_LIB}
-        "-ldl" "-lomp" "-fopenmp" "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports")
+        "-fopenmp"
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
+        omptarget
+        )

@@ -11,29 +11,50 @@
 //===----------------------------------------------------------------------===//
 
 #include <cstddef>
-#include <memory>
 #include <string>
 
-#include "Client.h"
-#include "Utils.h"
-#include "omptarget.h"
+#include "grpc/Client.h"
 #include "omptargetplugin.h"
+#include "ucx/Client.h"
 
-#define TARGET_NAME RPC
+#ifndef DEBUG_PREFIX
 #define DEBUG_PREFIX "Target " GETNAME(TARGET_NAME) " RTL"
+#endif
 
-RemoteClientManager *Manager;
+BaseClientManagerTy *Manager;
 
 __attribute__((constructor(101))) void initRPC() {
   DP("Init RPC library!\n");
 
-  Manager = new RemoteClientManager();
+  auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
+
+  if (!Transport || !strcmp(Transport, "gRPC")) {
+    Manager = (BaseClientManagerTy *)new transport::grpc::ClientManagerTy();
+  } else if (!strcmp(Transport, "UCX")) {
+    auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
+    if (!Serialization || !strcmp(Serialization, "Custom"))
+      Manager =
+          (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(transport::ucx::SerializerType::Custom);
+    else if (!strcmp(Serialization, "Protobuf"))
+      Manager =
+          (BaseClientManagerTy *)new transport::ucx::ClientManagerTy(transport::ucx::SerializerType::Protobuf);
+    else
+      ERR("Invalid Serialization");
+  } else
+    ERR("Invalid Transport");
 }
 
 __attribute__((destructor(101))) void deinitRPC() {
-  Manager->shutdown(); // TODO: Error handle shutting down
   DP("Deinit RPC library!\n");
-  delete Manager;
+
+  Manager->shutdown();
+
+  auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
+
+  if (!Transport || !strcmp(Transport, "gRPC"))
+    delete (transport::grpc::ClientManagerTy *)Manager;
+  else
+    delete (transport::ucx::ClientManagerTy *)Manager;
 }
 
 // Exposed library API function
@@ -68,10 +89,6 @@ __tgt_target_table *__tgt_rtl_load_binary(int32_t DeviceId,
   return Manager->loadBinary(DeviceId, (__tgt_device_image *)Image);
 }
 
-int32_t __tgt_rtl_is_data_exchangable(int32_t SrcDevId, int32_t DstDevId) {
-  return Manager->isDataExchangeable(SrcDevId, DstDevId);
-}
-
 void *__tgt_rtl_data_alloc(int32_t DeviceId, int64_t Size, void *HstPtr,
                            int32_t Kind) {
   if (Kind != TARGET_ALLOC_DEFAULT) {
@@ -96,12 +113,6 @@ int32_t __tgt_rtl_data_retrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
 int32_t __tgt_rtl_data_delete(int32_t DeviceId, void *TgtPtr) {
   return Manager->dataDelete(DeviceId, TgtPtr);
 }
-
-int32_t __tgt_rtl_data_exchange(int32_t SrcDevId, void *SrcPtr,
-                                int32_t DstDevId, void *DstPtr, int64_t Size) {
-  return Manager->dataExchange(SrcDevId, SrcPtr, DstDevId, DstPtr, Size);
-}
-
 
 int32_t __tgt_rtl_run_target_region(int32_t DeviceId, void *TgtEntryPtr,
                                     void **TgtArgs, ptrdiff_t *TgtOffsets,

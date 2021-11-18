@@ -10,7 +10,7 @@
 #
 ##===----------------------------------------------------------------------===##
 
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.15)
 
 # Define the suffix for the runtime messaging dumps.
 add_definitions(-DTARGET_NAME=RPC)
@@ -19,24 +19,49 @@ include_directories(${LIBOMPTARGET_SRC_DIR})
 include_directories(${LIBOMPTARGET_INCLUDE_DIR})
 include_directories(${GRPC_INCLUDE_DIR})
 include_directories(${RPC_INCLUDE_DIR})
+include_directories(${TRANSPORTS_DIR})
+include_directories(${UCX_DIR}/include)
+include_directories(${GRPC_DIR}/include)
 
-add_library(omptarget.rtl.rpc SHARED
+set(LLVM_LINK_COMPONENTS
+        Support
+        )
+
+add_llvm_library(omptarget.rtl.remote SHARED
         ${LIBOMPTARGET_SRC_FILES}
         ${GRPC_SRC_FILES}
-        ${RPC_SRC_DIR}/Utils.cpp
-        Client.cpp
+        BaseClient.cpp
+        Utils.cpp
+        ${TRANSPORTS_DIR}/grpc/Client.cpp
+        ${TRANSPORTS_DIR}/ucx/Base.cpp
+        ${TRANSPORTS_DIR}/ucx/Client.cpp
+        ${TRANSPORTS_DIR}/ucx/Serialization.cpp
+        ${TRANSPORTS_DIR}/ucx/Serializer.cpp
+        ${TRANSPORTS_DIR}/ucx/Utils.cpp
         rtl.cpp
-)
+        )
+
+llvm_update_compile_flags(omptarget.rtl.remote)
+
+target_compile_features(omptarget.rtl.remote PRIVATE cxx_std_20)
 
 # Install plugin under the lib destination folder.
-install(TARGETS omptarget.rtl.rpc LIBRARY DESTINATION "${OPENMP_INSTALL_LIBDIR}")
+install(TARGETS omptarget.rtl.remote LIBRARY DESTINATION "${OPENMP_INSTALL_LIBDIR}")
 
-target_link_libraries(omptarget.rtl.rpc
-  grpc++
-  protobuf
-  "-ldl"
-  ${OPENMP_PTHREAD_LIB}
-  "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports")
+target_link_libraries(omptarget.rtl.remote PRIVATE
+        protobuf
+        grpc++
+        dl
+        ucp
+        ucs
+        uct
+        absl::synchronization
+        "-L ${GRPC_DIR}/lib"
+        "-L ${UCX_DIR}/lib"
+        ${OPENMP_PTHREAD_LIB}
+        "-fopenmp"
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
+        )
 
 # Report to the parent scope that we are building a plugin for RPC.
-set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} rpc" PARENT_SCOPE)
+set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} remote" PARENT_SCOPE)

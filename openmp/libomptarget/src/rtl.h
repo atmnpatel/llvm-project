@@ -124,6 +124,8 @@ struct RTLsTy {
   // binaries.
   std::vector<RTLInfoTy *> UsedRTLs;
 
+  std::vector<std::string> BlocklistedRTLs;
+
   int64_t RequiresFlags = OMP_REQ_UNDEFINED;
 
   explicit RTLsTy() = default;

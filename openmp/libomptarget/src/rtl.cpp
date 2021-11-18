@@ -29,7 +29,7 @@ static const char *RTLNames[] = {
     /* AArch64 target       */ "libomptarget.rtl.aarch64.so",
     /* SX-Aurora VE target  */ "libomptarget.rtl.ve.so",
     /* AMDGPU target        */ "libomptarget.rtl.amdgpu.so",
-    /* Remote target        */ "libomptarget.rtl.rpc.so",
+    /* Remote target        */ "libomptarget.rtl.remote.so",
 };
 
 PluginManager *PM;
@@ -78,6 +78,11 @@ void RTLsTy::LoadRTLs() {
   // Attempt to open all the plugins and, if they exist, check if the interface
   // is correct and if they are supporting any devices.
   for (auto *Name : RTLNames) {
+    if (std::find_if(BlocklistedRTLs.begin(), BlocklistedRTLs.end(), [&](std::string RTLName) {
+          return !RTLName.compare(std::string(Name));
+        }) != std::end(BlocklistedRTLs))
+      continue;
+
     DP("Loading library '%s'...\n", Name);
     void *dynlib_handle = dlopen(Name, RTLD_NOW);
 

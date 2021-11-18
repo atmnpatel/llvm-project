@@ -1,11 +1,9 @@
 syntax = "proto3";
 
-package openmp.libomptarget.remote;
+package openmp.libomptarget.grpc;
 option cc_enable_arenas = true;
 
 service RemoteOffload {
-  rpc Shutdown(Null) returns (I32) {}
-
   rpc RegisterLib(TargetBinaryDescription) returns (I32) {}
   rpc UnregisterLib(Pointer) returns (I32) {}
 
@@ -13,7 +11,7 @@ service RemoteOffload {
   rpc GetNumberOfDevices(Null) returns (I32) {}
 
   rpc InitDevice(I32) returns (I32) {}
-  rpc InitRequires(I64) returns (I32) {}
+  rpc InitRequires(I64) returns (I64) {}
 
   rpc LoadBinary(Binary) returns (TargetTable) {}
 
@@ -135,7 +133,7 @@ message DeleteData {
 
 message TargetRegion {
   repeated uint64 tgt_args = 1;
-  repeated int64 tgt_offsets = 2;
+  repeated uint64 tgt_offsets = 2;
   uint64 tgt_entry_ptr = 3;
   int32 device_id = 4;
   int32 arg_num = 5;

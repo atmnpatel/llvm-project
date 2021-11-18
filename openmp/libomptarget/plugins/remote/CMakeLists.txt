@@ -9,14 +9,14 @@
 #
 ##===----------------------------------------------------------------------===#
 
-if (NOT(CMAKE_SYSTEM_NAME MATCHES "Linux"))
-  libomptarget_say("Not building remote offloading plugin: only support Linux hosts.")
-  return()
-endif()
+if (NOT (CMAKE_SYSTEM_NAME MATCHES "Linux"))
+    libomptarget_say("Not building remote offloading plugin: only support Linux hosts.")
+    return()
+endif ()
 
-if (NOT(LIBOMPTARGET_ENABLE_EXPERIMENTAL_REMOTE_PLUGIN))
-  return()
-endif()
+if (NOT (LIBOMPTARGET_ENABLE_EXPERIMENTAL_REMOTE_PLUGIN))
+    return()
+endif ()
 
 find_package(Protobuf)
 find_package(gRPC CONFIG)
@@ -24,31 +24,36 @@ find_package(gRPC CONFIG)
 find_program(PROTOC protoc)
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
 
+set(SERIALIZATION_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(TRANSPORTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/transports/)
+
+set(CMAKE_CXX_STANDARD 20)
+
 if (Protobuf_FOUND AND gRPC_FOUND AND PROTOC AND GRPC_CPP_PLUGIN)
-  libomptarget_say("Building remote offloading plugin.")
-  set(directory "${CMAKE_BINARY_DIR}/include/openmp/libomptarget/plugins/remote/")
-  file(MAKE_DIRECTORY ${directory})
-  execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${directory})
-  execute_process(
-          COMMAND protoc --cpp_out=${directory} -I ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/include/openmp.proto
-          COMMAND protoc --grpc_out=${directory} -I ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/include/openmp.proto --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
-  )
+    libomptarget_say("Building remote offloading plugin.")
+    set(directory "${CMAKE_BINARY_DIR}/include/openmp/libomptarget/plugins/remote/")
+    file(MAKE_DIRECTORY ${directory})
+    execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${directory})
+    execute_process(
+            COMMAND env LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/apatel/anl/grpc/build/install/lib protoc --cpp_out=${directory} -I ${SERIALIZATION_DIR} ${SERIALIZATION_DIR}/messages.proto  ${SERIALIZATION_DIR}/grpc.proto
+            COMMAND env LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/apatel/anl/grpc/build/install/lib protoc --grpc_out=${directory} -I ${SERIALIZATION_DIR} ${SERIALIZATION_DIR}/grpc.proto --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
+    )
 
-  set(GRPC_SRC_FILES
-      ${directory}/openmp.grpc.pb.cc
-      ${directory}/openmp.pb.cc
-  )
+    set(GRPC_SRC_FILES
+            ${directory}/messages.pb.cc
+            ${directory}/grpc.grpc.pb.cc
+            )
 
-  set(GRPC_INCLUDE_DIR
-      ${directory}
-  )
+    set(GRPC_INCLUDE_DIR
+            ${directory}
+            )
 
-  set(RPC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/)
-  set(RPC_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/)
-  
-  add_subdirectory(src)
-  add_subdirectory(server)
-else()
-  libomptarget_say("Not building remote offloading plugin: required libraries were not found.")
-endif()
+    set(RPC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/)
+    set(RPC_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/)
+
+    add_subdirectory(src)
+    add_subdirectory(server)
+else ()
+    libomptarget_say("Not building remote offloading plugin: required libraries were not found.")
+endif ()
 

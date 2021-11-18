@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+import "messages.proto";
+
+package transport.grpc;
+option cc_enable_arenas = true;
+option optimize_for = LITE_RUNTIME;
+
+service RemoteOffload {
+  rpc RegisterLib(transport.messages.TargetBinaryDescription) returns (transport.messages.I32) {}
+  rpc UnregisterLib(transport.messages.Pointer) returns (transport.messages.I32) {}
+
+  rpc IsValidBinary(transport.messages.Pointer) returns (transport.messages.I32) {}
+  rpc GetNumberOfDevices(transport.messages.Null) returns (transport.messages.I32) {}
+
+  rpc InitDevice(transport.messages.I32) returns (transport.messages.I32) {}
+  rpc InitRequires(transport.messages.I64) returns (transport.messages.I64) {}
+
+  rpc LoadBinary(transport.messages.Binary) returns (transport.messages.TargetTable) {}
+
+  rpc DataAlloc(transport.messages.AllocData) returns (transport.messages.Pointer) {}
+  rpc DataDelete(transport.messages.DeleteData) returns (transport.messages.I32) {}
+
+  rpc DataSubmit(stream transport.messages.SSubmitData) returns (transport.messages.I32) {}
+  rpc DataRetrieve(transport.messages.RetrieveData) returns (stream transport.messages.SData) {}
+
+  rpc RunTargetRegion(transport.messages.TargetRegion) returns (transport.messages.I32) {}
+  rpc RunTargetTeamRegion(transport.messages.TargetTeamRegion) returns (transport.messages.I32) {}
+
+  rpc Shutdown(transport.messages.Null) returns (transport.messages.Null) {}
+}

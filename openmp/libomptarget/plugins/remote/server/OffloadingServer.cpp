@@ -16,36 +16,66 @@
 #include <iostream>
 #include <thread>
 
-#include "Server.h"
-
-using grpc::Server;
-using grpc::ServerBuilder;
+#include "grpc/Server.h"
+#include "ucx/Server.h"
 
 std::promise<void> ShutdownPromise;
 
 int main() {
-  ClientManagerConfigTy Config;
+  auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
 
-  RemoteOffloadImpl Service(Config.MaxSize, Config.BlockSize);
+  // Prevent hierarchical offloading
+  PM->RTLs.BlocklistedRTLs = {"libomptarget.rtl.rpc.so"};
 
-  ServerBuilder Builder;
-  Builder.AddListeningPort(Config.ServerAddresses[0],
-                           grpc::InsecureServerCredentials());
-  Builder.RegisterService(&Service);
-  Builder.SetMaxMessageSize(INT_MAX);
-  std::unique_ptr<Server> Server(Builder.BuildAndStart());
-  if (getDebugLevel())
-    std::cerr << "Server listening on " << Config.ServerAddresses[0]
-              << std::endl;
+  // Initialize Devices
+  std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, &PM->RTLs);
 
-  auto WaitForServer = [&]() { Server->Wait(); };
+  if (!Transport || !strcmp(Transport, "gRPC")) {
+    transport::grpc::ClientManagerConfigTy Config;
 
-  std::thread ServerThread(WaitForServer);
+    transport::grpc::RemoteOffloadImpl Service(Config.MaxSize,
+                                               Config.BlockSize);
 
-  auto ShutdownFuture = ShutdownPromise.get_future();
-  ShutdownFuture.wait();
-  Server->Shutdown();
-  ServerThread.join();
+    grpc::ServerBuilder Builder;
+    Builder.AddListeningPort(Config.ServerAddresses[0],
+                             grpc::InsecureServerCredentials());
+    Builder.RegisterService(&Service);
+    Builder.SetMaxMessageSize(INT_MAX);
+    std::unique_ptr<grpc::Server> Server(Builder.BuildAndStart());
+    if (getDebugLevel())
+      std::cerr << "Server listening on " << Config.ServerAddresses[0]
+                << std::endl;
 
-  return 0;
+    auto WaitForServer = [&]() { Server->Wait(); };
+
+    std::thread ServerThread(WaitForServer);
+
+    auto ShutdownFuture = ShutdownPromise.get_future();
+    ShutdownFuture.wait();
+    Server->Shutdown();
+    ServerThread.join();
+
+    return 0;
+  }
+
+  if (!strcmp(Transport, "UCX")) {
+    transport::ucx::ServerTy *Server;
+
+    auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
+    if (!Serialization || !strcmp(Serialization, "Custom"))
+      Server = new transport::ucx::ServerTy(transport::ucx::SerializerType::Custom);
+    else if (!strcmp(Serialization, "Protobuf"))
+      Server = new transport::ucx::ServerTy(transport::ucx::SerializerType::Protobuf);
+    else
+      ERR("Invalid Serialization Option")
+
+    auto *ConnectionInfoStr = std::getenv("LIBOMPTARGET_RPC_ADDRESS");
+    auto ConnectionInfo =
+        ConnectionInfoStr ? std::string(ConnectionInfoStr) : ":13337";
+    auto Config = transport::ucx::ConnectionConfigTy(ConnectionInfo);
+
+    Server->listenForConnections(Config);
+
+    return 0;
+  }
 }
