@@ -25,7 +25,7 @@ int main() {
   auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
 
   // Prevent hierarchical offloading
-  PM->RTLs.BlocklistedRTLs = {"libomptarget.rtl.rpc.so"};
+  PM->RTLs.BlocklistedRTLs = {"libomptarget.rtl.remote.so"};
 
   // Initialize Devices
   std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, &PM->RTLs);

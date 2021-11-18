@@ -15,14 +15,15 @@ namespace transport::ucx {
 
 class ClientTy : public Base, public BaseClientTy {
 protected:
-  std::vector<std::unique_ptr<Base::InterfaceTy>> Interfaces;
-
   SerializerTy *Serializer;
+
+  uint64_t Tag = 0;
 
   std::map<int32_t, std::unordered_map<void *, void *>> RemoteEntries{};
   std::map<int32_t, std::unique_ptr<__tgt_target_table>> DevicesToTables{};
 
   std::string send(MessageKind Kind, std::string Message) {
+    /*
     if (MultiThreaded) {
       auto SendFuture = asyncSend(Kind, Message);
       auto RecvFuture = asyncRecv(SendFuture.Tag);
@@ -37,8 +38,12 @@ protected:
 
       return {*RecvFuture.Buffer};
     } else {
-      return std::string();
-    }
+     */
+
+    uint64_t MsgTag = ((uint64_t)Kind << 60) | Tag;
+    Tag++;
+    Interface->EP.send(MsgTag, Message);
+    return Interface->Worker.receive(MsgTag).second;
   }
 
 public:

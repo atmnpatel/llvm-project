@@ -22,6 +22,15 @@
     }                                                                          \
   }
 
+#define DBG(...)                                                        \
+  {                                                                            \
+    if (getDebugLevel() > 0) {                                                      \
+      fprintf(stderr, "[[UCX]] --> ");                                      \
+      fprintf(stderr, __VA_ARGS__);                                            \
+      fprintf(stderr, "\n");                                                   \
+    }                                                                          \
+  }
+
 /// Loads a target binary description into protobuf.
 void loadTargetBinaryDescription(const __tgt_bin_desc *Desc,
                                  transport::messages::TargetBinaryDescription &Request);

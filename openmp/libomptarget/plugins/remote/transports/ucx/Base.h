@@ -49,6 +49,8 @@ public:
 
   RecvFutureTy asyncRecv(RecvTaskTy &Task);
 
+  std::pair<MessageKind, std::string> receive(uint64_t Tag);
+
   std::mutex ProgressMtx;
   std::atomic<bool> Running;
 
@@ -77,6 +79,8 @@ public:
   EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config);
 
   SendFutureTy asyncSend(SendTaskTy &Task);
+
+  void send(uint64_t Tag, std::string &Message);
 
   /* Helper Functions */
   operator ucp_ep_h() { return EP; }

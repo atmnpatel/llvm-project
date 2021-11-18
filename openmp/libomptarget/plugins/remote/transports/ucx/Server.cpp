@@ -78,10 +78,11 @@ void ServerTy::listenForConnections(const ConnectionConfigTy &Config) {
 
     for (auto *ConnRequest : Ctx.ConnRequests) {
       Interface = new InterfaceTy(Context, ConnRequest);
-      Thread = std::thread([&]() {
-        initializeWorkerThread();
-        run();
-      });
+      run();
+//      Thread = std::thread([&]() {
+//        initializeWorkerThread();
+//        run();
+//      });
     }
 
     Ctx.ConnRequests.clear();
@@ -221,7 +222,6 @@ void ServerTy::initDevice(size_t InterfaceIdx, std::string &Message) {
 }
 
 void ServerTy::loadBinary(size_t InterfaceIdx, std::string &Message) {
-  dump(Message);
   auto [DeviceId, ImagePtr] = Serializer->Binary(Message);
 
   __tgt_device_image *Image = HostToRemoteDeviceImage[(void *)ImagePtr];

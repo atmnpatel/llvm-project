@@ -19,7 +19,7 @@ ContextTy::~ContextTy() { ucp_cleanup(Context); }
 WorkerTy::WorkerTy(ucp_context_h *Context) : Worker(nullptr) {
   ucp_worker_params_t Params = {.field_mask =
                                     UCP_WORKER_PARAM_FIELD_THREAD_MODE,
-                                .thread_mode = UCS_THREAD_MODE_SERIALIZED};
+                                .thread_mode = UCS_THREAD_MODE_SINGLE};
 
   if (auto Status = ucp_worker_create(*Context, &Params, &Worker))
     ERR("failed ot ucp_worker_create ({0})", ucs_status_string(Status))
@@ -32,7 +32,6 @@ WorkerTy::~WorkerTy() { ucp_worker_destroy(Worker); }
 SendFutureTy EndpointTy::asyncSend(SendTaskTy &Task) {
   if (Task.Kind == MessageKind::DataSubmit) {
     printf("Submitting %p, %zu\n", Task.Buffer.data(), Task.Buffer.size());
-    // dump(Task.Buffer);
   }
   RequestStatus *Req;
   auto *Ctx = new RequestStatus();
@@ -52,6 +51,27 @@ SendFutureTy EndpointTy::asyncSend(SendTaskTy &Task) {
     ERR("failed to send message {0}\n", ucs_status_string(UCS_PTR_STATUS(Req)))
 
   return {Req, Ctx, Task.Completed};
+}
+
+void EndpointTy::send(uint64_t Tag, std::string &Message) {
+  DBG("Sending: %lx", Tag)
+  dump(Message.data(), Message.data() + std::min((unsigned long) 100, Message.length()));
+  RequestStatus *Req;
+  auto *Ctx = new RequestStatus();
+
+  Ctx->Complete = 0;
+  ucp_request_param_t Param = {.op_attr_mask = UCP_OP_ATTR_FIELD_CALLBACK |
+                                               UCP_OP_ATTR_FIELD_USER_DATA,
+                               .cb = {.send = sendCallback},
+                               .user_data = Ctx};
+  Req = (RequestStatus *)ucp_tag_send_nbx(
+      EP, Message.data(), Message.length(), Tag, &Param);
+
+  if (Req == nullptr)
+    return;
+
+  if (UCS_PTR_IS_ERR(Req))
+    ERR("failed to send message {0}\n", ucs_status_string(UCS_PTR_STATUS(Req)))
 }
 
 RecvFutureTy WorkerTy::asyncRecv(RecvTaskTy &Task) {
@@ -85,6 +105,40 @@ RecvFutureTy WorkerTy::asyncRecv(RecvTaskTy &Task) {
 
   return {(MessageKind)(InfoTag.sender_tag >> 60), Request, Task.Message,
           Task.Completed};
+}
+
+std::pair<MessageKind, std::string> WorkerTy::receive(uint64_t Tag) {
+  ucp_tag_recv_info_t InfoTag;
+  ucs_status_t Status;
+  ucp_tag_message_h MsgTag;
+
+  while (Running) {
+    std::lock_guard Guard(ProgressMtx);
+    MsgTag = ucp_tag_probe_nb(Worker, Tag, TAG_MASK, 1, &InfoTag);
+    if (MsgTag != nullptr)
+      break;
+    if (ucp_worker_progress(Worker))
+      continue;
+
+    Status = ucp_worker_wait(Worker);
+    if (Status != UCS_OK) {
+      ERR("Failed to recv message {0}", ucs_status_string(Status))
+    }
+  }
+
+  if (!Running)
+    return {};
+
+  std::string Message;
+  Message.resize(InfoTag.length);
+  auto *Request = (RequestStatus *)ucp_tag_msg_recv_nb(
+      Worker, Message.data(), InfoTag.length, ucp_dt_make_contig(1),
+      MsgTag, receiveCallback);
+
+  DBG("Receiving: %lx", InfoTag.sender_tag)
+  dump(Message.data(), Message.data() + std::min((unsigned long) 100, Message.length()));
+
+  return {(MessageKind)(InfoTag.sender_tag >> 60), Message};
 }
 
 EndpointTy::EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest)

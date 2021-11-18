@@ -43,7 +43,10 @@ protected:
 
   SerializerTy *Serializer;
 
+  uint64_t Tag = 0;
+
   void send(MessageKind Kind, std::string Message) {
+    /*
     if (!MultiThreaded) {
     auto SendFuture = asyncSend(Kind, Message);
 
@@ -57,9 +60,14 @@ protected:
     if (!Interface->EP.Connected)
       return;
     }
+    */
+    uint64_t MsgTag = ((uint64_t)Kind << 60) | Tag;
+    Tag++;
+    Interface->EP.send(MsgTag, Message);
   }
 
   std::pair<MessageKind, std::string> recv(uint64_t Tag) {
+    /*
     if (!MultiThreaded) {
       auto RecvFuture = asyncRecv(Tag);
 
@@ -71,8 +79,9 @@ protected:
 
       return {(MessageKind)(*RecvFuture.Tag >> 60), *RecvFuture.Buffer};
     }
+     */
 
-    return {MessageKind::DataSubmit, std::string()};
+    return Interface->Worker.receive(Tag);
   }
 
 public:

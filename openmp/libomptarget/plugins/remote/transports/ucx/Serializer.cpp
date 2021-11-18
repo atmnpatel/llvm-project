@@ -230,7 +230,6 @@ std::string ProtobufSerializerTy::Binary(int32_t DeviceId,
 
 std::pair<int32_t, __tgt_device_image *>
 ProtobufSerializerTy::Binary(std::string Message) {
-  dump(Message);
   transport::messages::Binary Response;
   if (!Response.ParseFromString(Message))
     llvm::report_fatal_error("Could not parse Protobuf Message");
