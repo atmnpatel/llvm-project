@@ -18,20 +18,18 @@ include_directories(${TRANSPORTS_DIR})
 include_directories(${UCX_DIR}/include)
 include_directories(${GRPC_DIR}/include)
 
-set(LLVM_LINK_COMPONENTS
-        Support
-        )
+set(LLVM_LINK_COMPONENTS Support)
 
 add_llvm_executable(openmp-offloading-server
         ${LIBOMPTARGET_SRC_FILES}
-        OffloadingServer.cpp
+        ${GRPC_SRC_FILES}
         ${TRANSPORTS_DIR}/grpc/Server.cpp
         ${TRANSPORTS_DIR}/ucx/Server.cpp
         ${TRANSPORTS_DIR}/ucx/Base.cpp
         ${TRANSPORTS_DIR}/ucx/Serialization.cpp
         ${TRANSPORTS_DIR}/ucx/Serializer.cpp
         ${TRANSPORTS_DIR}/ucx/Utils.cpp
-        ${GRPC_SRC_FILES}
+        OffloadingServer.cpp
         ../src/Utils.cpp
         )
 
@@ -50,13 +48,11 @@ target_link_libraries(openmp-offloading-server PRIVATE
         ucp
         ucs
         uct
+        absl::synchronization
+        omptarget
         "-L ${GRPC_DIR}/lib"
         "-L ${UCX_DIR}/lib"
         ${OPENMP_PTHREAD_LIB}
-        "-fopenmp"
-        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
-        omptarget
-        absl::synchronization
-        ${OPENMP_PTHREAD_LIB}
         "-O3"
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
         )

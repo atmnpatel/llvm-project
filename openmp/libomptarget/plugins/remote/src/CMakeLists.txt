@@ -13,7 +13,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 # Define the suffix for the runtime messaging dumps.
-add_definitions(-DTARGET_NAME=RPC)
+add_definitions(-DTARGET_NAME=REMOTE)
 
 include_directories(${LIBOMPTARGET_SRC_DIR})
 include_directories(${LIBOMPTARGET_INCLUDE_DIR})
@@ -23,21 +23,19 @@ include_directories(${TRANSPORTS_DIR})
 include_directories(${UCX_DIR}/include)
 include_directories(${GRPC_DIR}/include)
 
-set(LLVM_LINK_COMPONENTS
-        Support
-        )
+set(LLVM_LINK_COMPONENTS Support)
 
 add_llvm_library(omptarget.rtl.remote SHARED
         ${LIBOMPTARGET_SRC_FILES}
         ${GRPC_SRC_FILES}
-        BaseClient.cpp
-        Utils.cpp
         ${TRANSPORTS_DIR}/grpc/Client.cpp
         ${TRANSPORTS_DIR}/ucx/Base.cpp
         ${TRANSPORTS_DIR}/ucx/Client.cpp
         ${TRANSPORTS_DIR}/ucx/Serialization.cpp
         ${TRANSPORTS_DIR}/ucx/Serializer.cpp
         ${TRANSPORTS_DIR}/ucx/Utils.cpp
+        BaseClient.cpp
+        Utils.cpp
         rtl.cpp
         )
 
@@ -59,7 +57,6 @@ target_link_libraries(omptarget.rtl.remote PRIVATE
         "-L ${GRPC_DIR}/lib"
         "-L ${UCX_DIR}/lib"
         ${OPENMP_PTHREAD_LIB}
-        "-fopenmp"
         "-O3"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
         )
