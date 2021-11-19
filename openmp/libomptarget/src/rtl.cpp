@@ -67,11 +67,11 @@ __attribute__((destructor(101))) void deinit() {
 
 void RTLsTy::LoadRTLs() {
   // Parse environment variable OMP_TARGET_OFFLOAD (if set)
-  PM->TargetOffloadPolicy =
-      (kmp_target_offload_kind_t)__kmpc_get_target_offload();
-  if (PM->TargetOffloadPolicy == tgt_disabled) {
-    return;
-  }
+  // PM->TargetOffloadPolicy =
+  //     (kmp_target_offload_kind_t)__kmpc_get_target_offload();
+  // if (PM->TargetOffloadPolicy == tgt_disabled) {
+  //   return;
+  // }
 
   DP("Loading RTLs...\n");
 
