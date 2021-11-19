@@ -57,8 +57,9 @@ target_link_libraries(omptarget.rtl.remote PRIVATE
         "-L ${GRPC_DIR}/lib"
         "-L ${UCX_DIR}/lib"
         ${OPENMP_PTHREAD_LIB}
-        "-ggdb"
-        "-g"
+        # "-ggdb"
+        # "-g"
+        "-O3 -fno-omit-frame-pointer"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
         )
 

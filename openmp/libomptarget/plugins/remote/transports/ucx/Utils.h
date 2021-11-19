@@ -43,11 +43,12 @@ struct RequestStatus {
 struct SendFutureTy {
   RequestStatus *Request;
   RequestStatus *Context;
-  const char *Message;
-  SendFutureTy(RequestStatus *Request, RequestStatus *Context,
-               const char *Message)
-      : Request(Request), Context(Context), Message(Message) {}
-  SendFutureTy() : Request(nullptr), Context(nullptr), Message(nullptr) {}
+  std::string Message;
+  SendFutureTy(std::string Message) : Request(nullptr), Context(new RequestStatus()), Message(Message) {}
+
+  ~SendFutureTy() {
+    delete Context;
+  }
 };
 
 /* Struct to hold the handle for asynchronous transmissions */
