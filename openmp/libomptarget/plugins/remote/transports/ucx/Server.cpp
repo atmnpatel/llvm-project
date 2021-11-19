@@ -685,11 +685,12 @@ void ServerTy::dataRetrieve(size_t InterfaceIdx, std::string &Message) {
 
 void ServerTy::runTargetRegion(size_t InterfaceIdx, std::string &Message) {
   custom::TargetRegion Request(Message);
+  custom::I32 Response(0);
 
-  custom::I32 Response(PM->Devices[Request.DeviceId]->RTL->run_region(
-      mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
-      (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets,
-      Request.ArgNum));
+  // custom::I32 Response(PM->Devices[Request.DeviceId]->RTL->run_region(
+  //     mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
+  //     (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets,
+  //     Request.ArgNum));
 
   Interfaces[InterfaceIdx]->send(RunTargetRegion, Response.Message, true);
 }
@@ -697,10 +698,12 @@ void ServerTy::runTargetRegion(size_t InterfaceIdx, std::string &Message) {
 void ServerTy::runTargetTeamRegion(size_t InterfaceIdx, std::string &Message) {
   custom::TargetTeamRegion Request(Message);
 
-  custom::I32 Response(PM->Devices[Request.DeviceId]->RTL->run_team_region(
-      mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
-      (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets, Request.ArgNum,
-      Request.TeamNum, Request.ThreadLimit, Request.LoopTripCount));
+  // custom::I32 Response(PM->Devices[Request.DeviceId]->RTL->run_team_region(
+  //     mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
+  //     (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets, Request.ArgNum,
+  //     Request.TeamNum, Request.ThreadLimit, Request.LoopTripCount));
+
+  custom::I32 Response(0);
 
   Interfaces[InterfaceIdx]->send(RunTargetTeamRegion, Response.Message, true);
 }
