@@ -38,7 +38,7 @@ struct SerializerTy {
   virtual std::string DataDelete(int32_t DeviceId, void *TgtPtr) = 0;
   virtual std::tuple<int32_t, void *> DataDelete(std::string Message) = 0;
 
-  virtual std::string DataSubmit(int32_t DeviceId, void *HstPtr, void *TgtPtr,
+  virtual std::string DataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                                  int64_t Size) = 0;
   virtual std::tuple<int32_t, void *, void *, int64_t>
   DataSubmit(std::string Message) = 0;
@@ -99,7 +99,7 @@ class ProtobufSerializerTy : public SerializerTy {
   std::string DataDelete(int32_t DeviceId, void *TgtPtr) override;
   std::tuple<int32_t, void *> DataDelete(std::string Message) override;
 
-  std::string DataSubmit(int32_t DeviceId, void *HstPtr, void *TgtPtr,
+  std::string DataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                          int64_t Size) override;
   std::tuple<int32_t, void *, void *, int64_t>
   DataSubmit(std::string Message) override;
@@ -159,7 +159,7 @@ class CustomSerializerTy : public SerializerTy {
   std::string DataDelete(int32_t DeviceId, void *TgtPtr) override;
   std::tuple<int32_t, void *> DataDelete(std::string Message) override;
 
-  std::string DataSubmit(int32_t DeviceId, void *HstPtr, void *TgtPtr,
+  std::string DataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                          int64_t Size) override;
   std::tuple<int32_t, void *, void *, int64_t>
   DataSubmit(std::string Message) override;

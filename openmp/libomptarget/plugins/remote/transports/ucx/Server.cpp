@@ -632,94 +632,93 @@ void ServerTy::initDevice(size_t InterfaceIdx, std::string &Message) {
 }
 
 void ServerTy::loadBinary(size_t InterfaceIdx, std::string &Message) {
-  custom::Binary Request(Message);
+  auto Request = Serializer->Binary(Message);
 
-  __tgt_device_image *Image = HostToRemoteDeviceImage[(void *)Request.Image];
+  __tgt_device_image *Image = HostToRemoteDeviceImage[(void *)Request.second];
 
-  auto *TT = PM->Devices[Request.DeviceId]->RTL->load_binary(
-      mapHostRTLDeviceId(Request.DeviceId), Image);
+  auto *TT = PM->Devices[Request.first]->RTL->load_binary(
+      mapHostRTLDeviceId(Request.first), Image);
 
   if (TT) {
-    custom::TargetTable Response(TT);
-    Interfaces[InterfaceIdx]->send(LoadBinary, Response.Message);
+    Interfaces[InterfaceIdx]->send(LoadBinary, Serializer->TargetTable(TT));
   } else {
     ERR("Could not load binary");
   }
 }
 
 void ServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
-  custom::DataAlloc Request(Message);
+  auto [DeviceId, AllocSize, HstPtr] = Serializer->DataAlloc(Message);
 
-  auto TgtPtr = (uint64_t)PM->Devices[Request.DeviceId]->RTL->data_alloc(
-      mapHostRTLDeviceId(Request.DeviceId), Request.AllocSize,
-      (void *)Request.HstPtr, TARGET_ALLOC_DEFAULT);
+  auto TgtPtr = (uint64_t)PM->Devices[DeviceId]->RTL->data_alloc(
+      mapHostRTLDeviceId(DeviceId), AllocSize,
+      (void *)HstPtr, TARGET_ALLOC_DEFAULT);
 
-  custom::Pointer Response((uintptr_t)TgtPtr);
-  Interfaces[InterfaceIdx]->send(DataAlloc, Response.Message);
+  Interfaces[InterfaceIdx]->send(DataAlloc, Serializer->Pointer(TgtPtr));
 }
 
 void ServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
-  custom::DataSubmit Request(Message);
+  auto [DeviceId, TgtPtr, HstPtr, DataSize] = Serializer->DataSubmit(Message);
 
-  custom::I32 Response(PM->Devices[Request.DeviceId]->RTL->data_submit(
-      mapHostRTLDeviceId(Request.DeviceId), Request.TgtPtr, Request.HstPtr,
-      Request.DataSize));
+  printf("%d, %p, %p, %ld\n", mapHostRTLDeviceId(DeviceId), TgtPtr, HstPtr, DataSize);
 
-  Interfaces[InterfaceIdx]->send(DataSubmit, Response.Message);
+  auto Ret = PM->Devices[DeviceId]->RTL->data_submit(
+      mapHostRTLDeviceId(DeviceId), TgtPtr, HstPtr,
+      DataSize);
+
+  Interfaces[InterfaceIdx]->send(DataSubmit, Serializer->I32(Ret));
 }
 
 void ServerTy::dataRetrieve(size_t InterfaceIdx, std::string &Message) {
-  custom::DataRetrieve Request(Message);
+  auto [DeviceId, TgtPtr, DataSize] = Serializer->DataRetrieve(Message);
 
-  auto HstPtr = std::make_unique<char[]>(Request.DataSize);
+  auto HstPtr = std::make_unique<char[]>(DataSize);
 
-  int32_t Value = PM->Devices[Request.DeviceId]->RTL->data_retrieve(
-      mapHostRTLDeviceId(Request.DeviceId), (void *)HstPtr.get(),
-      (void *)Request.TgtPtr, Request.DataSize);
+  int32_t Value = PM->Devices[DeviceId]->RTL->data_retrieve(
+      mapHostRTLDeviceId(DeviceId), (void *)HstPtr.get(),
+      (void *)TgtPtr, DataSize);
 
-  custom::Data Response(Value, HstPtr.get(), Request.DataSize);
-
-  Interfaces[InterfaceIdx]->send(DataRetrieve, Response.Message);
+  Interfaces[InterfaceIdx]->send(DataRetrieve, Serializer->Data(HstPtr.get(), DataSize, Value));
 }
 
 void ServerTy::runTargetRegion(size_t InterfaceIdx, std::string &Message) {
-  custom::TargetRegion Request(Message);
-  custom::I32 Response(0);
+  auto Request = Serializer->TargetRegion(Message);
 
   // custom::I32 Response(PM->Devices[Request.DeviceId]->RTL->run_region(
   //     mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
   //     (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets,
   //     Request.ArgNum));
 
-  Interfaces[InterfaceIdx]->send(RunTargetRegion, Response.Message);
+  auto Ret = 0;
+
+  Interfaces[InterfaceIdx]->send(RunTargetRegion, Serializer->I32(Ret));
 }
 
 void ServerTy::runTargetTeamRegion(size_t InterfaceIdx, std::string &Message) {
-  custom::TargetTeamRegion Request(Message);
+  auto Request = Serializer->TargetTeamRegion(Message);
 
   // custom::I32 Response(PM->Devices[Request.DeviceId]->RTL->run_team_region(
   //     mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
   //     (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets, Request.ArgNum,
   //     Request.TeamNum, Request.ThreadLimit, Request.LoopTripCount));
 
-  custom::I32 Response(0);
+  auto Ret = 0;
 
-  Interfaces[InterfaceIdx]->send(RunTargetTeamRegion, Response.Message);
+  Interfaces[InterfaceIdx]->send(RunTargetTeamRegion, Serializer->I32(Ret));
 }
 
 void ServerTy::dataDelete(size_t InterfaceIdx, std::string &Message) {
-  custom::DataDelete Request(Message);
+  auto [DeviceId, TgtPtr] = Serializer->DataDelete(Message);
 
-  custom::I32 Response(PM->Devices[Request.DeviceId]->RTL->data_delete(
-      mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtPtr));
+  auto Ret = PM->Devices[DeviceId]->RTL->data_delete(
+      mapHostRTLDeviceId(DeviceId), (void *)TgtPtr);
 
-  Interfaces[InterfaceIdx]->send(DataDelete, Response.Message);
+  Interfaces[InterfaceIdx]->send(DataDelete, Serializer->I32(Ret));
 }
 
 void ServerTy::unregisterLib(size_t InterfaceIdx, std::string &Message) {
   PM->RTLs.UnregisterLib(TBD);
 
-  Interfaces[InterfaceIdx]->send(UnregisterLib, std::string("0"));
+  Interfaces[InterfaceIdx]->send(UnregisterLib, Serializer->EmptyMessage());
 }
 
 int32_t ServerTy::mapHostRTLDeviceId(int32_t RTLDeviceID) {

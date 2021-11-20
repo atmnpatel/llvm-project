@@ -94,9 +94,9 @@ CustomSerializerTy::DataDelete(std::string Message) {
   return {Request.DeviceId, (void *)Request.TgtPtr};
 }
 
-std::string CustomSerializerTy::DataSubmit(int32_t DeviceId, void *HstPtr,
-                                           void *TgtPtr, int64_t Size) {
-  transport::ucx::custom::DataSubmit Request(DeviceId, HstPtr, TgtPtr, Size);
+std::string CustomSerializerTy::DataSubmit(int32_t DeviceId, void *TgtPtr,
+                                           void *HstPtr, int64_t Size) {
+  transport::ucx::custom::DataSubmit Request(DeviceId, TgtPtr, HstPtr, Size);
   return Request.Message;
 }
 
@@ -104,7 +104,7 @@ std::tuple<int32_t, void *, void *, int64_t>
 CustomSerializerTy::DataSubmit(std::string Message) {
   transport::ucx::custom::DataSubmit Request(Message);
 
-  return {Request.DeviceId, (void *)Request.HstPtr, (void *)Request.TgtPtr,
+  return {Request.DeviceId, (void *)Request.TgtPtr, (void *)Request.HstPtr,
           (int64_t)Request.DataSize};
 }
 
@@ -282,8 +282,8 @@ ProtobufSerializerTy::DataDelete(std::string Message) {
   return {Request.device_id(), (void *)Request.tgt_ptr()};
 }
 
-std::string ProtobufSerializerTy::DataSubmit(int32_t DeviceId, void *HstPtr,
-                                             void *TgtPtr, int64_t Size) {
+std::string ProtobufSerializerTy::DataSubmit(int32_t DeviceId, void *TgtPtr,
+                                             void *HstPtr, int64_t Size) {
   transport::messages::SubmitData Request;
   Request.set_device_id(DeviceId);
   Request.set_data((const char *)HstPtr, Size);
@@ -294,11 +294,11 @@ std::string ProtobufSerializerTy::DataSubmit(int32_t DeviceId, void *HstPtr,
 
 std::tuple<int32_t, void *, void *, int64_t>
 ProtobufSerializerTy::DataSubmit(std::string Message) {
-  transport::messages::SubmitData Request;
-  Request.ParseFromString(Message);
+  transport::messages::SubmitData * Request = new transport::messages::SubmitData();
+  Request->ParseFromString(Message);
 
-  return {Request.device_id(), (void *)Request.data().data(),
-          (void *)Request.tgt_ptr(), (int64_t)Request.data().size()};
+  return {Request->device_id(),(void *)Request->tgt_ptr(),  (void *)Request->data().data(),
+          (int64_t)Request->data().size()};
 }
 
 std::string ProtobufSerializerTy::DataRetrieve(int32_t DeviceId, void *TgtPtr,
@@ -327,9 +327,9 @@ std::string ProtobufSerializerTy::Data(void *DataBuffer, size_t Size,
 
 std::tuple<void *, size_t, int32_t>
 ProtobufSerializerTy::Data(std::string Message) {
-  transport::messages::Data Request;
-  Request.ParseFromString(Message);
-  return {(void *)Request.data().data(), Request.data().size(), Request.ret()};
+  transport::messages::Data *Request = new transport::messages::Data();
+  Request->ParseFromString(Message);
+  return {(void *)Request->data().data(), Request->data().size(), Request->ret()};
 }
 
 std::string ProtobufSerializerTy::TargetRegion(

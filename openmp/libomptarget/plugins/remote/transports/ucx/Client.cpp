@@ -109,6 +109,7 @@ int32_t ClientTy::dataDelete(int32_t DeviceId, void *TgtPtr) {
 
 int32_t ClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                              int64_t Size) {
+  printf("%d, %p, %p, %ld\n", DeviceId, TgtPtr, HstPtr, Size);
   CLIENT_DBG("Submitting %ld bytes from %p to %p on device %d", Size, HstPtr,
              TgtPtr, DeviceId)
   auto Response = send(MessageKind::DataSubmit,
