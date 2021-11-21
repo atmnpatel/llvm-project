@@ -211,15 +211,19 @@ std::pair<MessageKind, std::string> Base::InterfaceTy::receive() {
   if (!Running)
     return {};
 
-  std::string Message;
-  Message.resize(InfoTag.length);
+  auto Buffer = std::make_unique<char[]>(InfoTag.length);
+
+//  std::string ReceiveBuffer;
+//  ReceiveBuffer.resize(InfoTag.length);
   auto *Request = (RequestStatus *)ucp_tag_msg_recv_nb(
-      Worker, Message.data(), InfoTag.length, ucp_dt_make_contig(1), MsgTag,
+      Worker, Buffer.get(), InfoTag.length, ucp_dt_make_contig(1), MsgTag,
       receiveCallback);
 
   wait(Request);
 
-  return {(MessageKind)(InfoTag.sender_tag >> 60), Message};
+  std::string ReceiveBuffer(Buffer.get(), InfoTag.length);
+
+  return {(MessageKind)(InfoTag.sender_tag >> 60), ReceiveBuffer};
 }
 
 Base::InterfaceTy::~InterfaceTy() {

@@ -262,9 +262,9 @@ Status RemoteOffloadImpl::RunTargetRegion(ServerContext *Context,
 
   int32_t Ret = 0;
 
-  // int32_t Ret = PM->Devices[Request->device_id()]->RTL->run_region(
-  //     mapHostRTLDeviceId(Request->device_id()), TgtEntryPtr,
-  //     (void **)TgtArgs.data(), TgtOffsets.data(), Request->tgt_args_size());
+  Ret = PM->Devices[Request->device_id()]->RTL->run_region(
+      mapHostRTLDeviceId(Request->device_id()), TgtEntryPtr,
+      (void **)TgtArgs.data(), TgtOffsets.data(), Request->tgt_args_size());
 
   Reply->set_number(Ret);
 
@@ -287,12 +287,12 @@ Status RemoteOffloadImpl::RunTargetTeamRegion(ServerContext *Context,
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request->tgt_entry_ptr())->addr;
 
-  // int32_t Ret = PM->Devices[Request->device_id()]->RTL->run_team_region(
-  //     mapHostRTLDeviceId(Request->device_id()), TgtEntryPtr,
-  //     (void **)TgtArgs.data(), TgtOffsets.data(), Request->tgt_args_size(),
-  //     Request->team_num(), Request->thread_limit(), Request->loop_tripcount());
-
   int32_t Ret = 0;
+
+  Ret = PM->Devices[Request->device_id()]->RTL->run_team_region(
+      mapHostRTLDeviceId(Request->device_id()), TgtEntryPtr,
+      (void **)TgtArgs.data(), TgtOffsets.data(), Request->tgt_args_size(),
+      Request->team_num(), Request->thread_limit(), Request->loop_tripcount());
 
   Reply->set_number(Ret);
 

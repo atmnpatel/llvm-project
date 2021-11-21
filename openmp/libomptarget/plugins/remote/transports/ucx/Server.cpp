@@ -84,7 +84,7 @@ void ProtobufServerTy::getNumberOfDevices(size_t InterfaceIdx) {
   Interfaces[InterfaceIdx]->send(Count, Response.SerializeAsString());
 }
 
-void ProtobufServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
+void ProtobufServerTy::registerLib(size_t InterfaceIdx, std::string_view Message) {
   auto Description = deserialize<TargetBinaryDescription>(Message);
 
   unloadTargetBinaryDescription(&Description, TBD, HostToRemoteDeviceImage);
@@ -101,7 +101,7 @@ void ProtobufServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
 }
 
 void ProtobufServerTy::isValidBinary(size_t InterfaceIdx,
-                                     std::string &Message) {
+                                     std::string_view Message) {
   auto DeviceImageHostPtr = deserialize<Pointer>(Message);
 
   SERVER_DBG("Checking if binary (%p) is valid",
@@ -126,7 +126,7 @@ void ProtobufServerTy::isValidBinary(size_t InterfaceIdx,
              (void *)(DeviceImageHostPtr.number()))
 }
 
-void ProtobufServerTy::initRequires(size_t InterfaceIdx, std::string &Message) {
+void ProtobufServerTy::initRequires(size_t InterfaceIdx, std::string_view Message) {
   SERVER_DBG("Initializing requires for devices")
   auto RequiresFlag = deserialize<I64>(Message);
 
@@ -139,7 +139,7 @@ void ProtobufServerTy::initRequires(size_t InterfaceIdx, std::string &Message) {
   SERVER_DBG("Initialized requires for devices")
 }
 
-void ProtobufServerTy::initDevice(size_t InterfaceIdx, std::string &Message) {
+void ProtobufServerTy::initDevice(size_t InterfaceIdx, std::string_view Message) {
   auto DeviceId = deserialize<I32>(Message);
 
   SERVER_DBG("Initializing device %d", DeviceId.number())
@@ -158,7 +158,7 @@ void ProtobufServerTy::initDevice(size_t InterfaceIdx, std::string &Message) {
 
 
 
-void ProtobufServerTy::loadBinary(size_t InterfaceIdx, std::string &Message) {
+void ProtobufServerTy::loadBinary(size_t InterfaceIdx, std::string_view Message) {
   auto Request = deserialize<Binary>(Message);
 
   __tgt_device_image *Image =
@@ -181,7 +181,7 @@ void ProtobufServerTy::loadBinary(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(Count, Response.SerializeAsString());
 }
 
-void ProtobufServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
+void ProtobufServerTy::dataAlloc(size_t InterfaceIdx, std::string_view Message) {
   auto Request = deserialize<AllocData>(Message);
 
   SERVER_DBG("Allocating %ld bytes on device %d", Request.size(),
@@ -199,7 +199,7 @@ void ProtobufServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
   SERVER_DBG("Allocated at " DPxMOD "", DPxPTR((void *)TgtPtr))
 }
 
-void ProtobufServerTy::dataDelete(size_t InterfaceIdx, std::string &Message) {
+void ProtobufServerTy::dataDelete(size_t InterfaceIdx, std::string_view Message) {
   auto Request = deserialize<DeleteData>(Message);
 
   SERVER_DBG("Deleting data from (%p) on device %d", (void *)Request.tgt_ptr(),
@@ -217,7 +217,7 @@ void ProtobufServerTy::dataDelete(size_t InterfaceIdx, std::string &Message) {
              mapHostRTLDeviceId(Request.device_id()))
 }
 
-void ProtobufServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
+void ProtobufServerTy::dataSubmit(size_t InterfaceIdx, std::string_view Message) {
   auto Request = deserialize<SubmitData>(Message);
 
   SERVER_DBG("Submitting %lu bytes async to (%p) on device %d",
@@ -239,7 +239,7 @@ void ProtobufServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
 }
 
 void ProtobufServerTy::runTargetRegion(size_t InterfaceIdx,
-                                       std::string &Message) {
+                                       std::string_view Message) {
   auto Request = deserialize<TargetRegion>(Message);
 
   std::vector<uint64_t> TgtArgs(Request.tgt_args_size());
@@ -263,7 +263,7 @@ void ProtobufServerTy::runTargetRegion(size_t InterfaceIdx,
   Interfaces[InterfaceIdx]->send(Count, Response.SerializeAsString());
 }
 
-void ProtobufServerTy::dataRetrieve(size_t InterfaceIdx, std::string &Message) {
+void ProtobufServerTy::dataRetrieve(size_t InterfaceIdx, std::string_view Message) {
   auto Request = deserialize<RetrieveData>(Message);
 
   SERVER_DBG("Retrieve %lu bytes from (%p) on device %d", Request.size(),
@@ -285,7 +285,7 @@ void ProtobufServerTy::dataRetrieve(size_t InterfaceIdx, std::string &Message) {
 }
 
 void ProtobufServerTy::runTargetTeamRegion(size_t InterfaceIdx,
-                                           std::string &Message) {
+                                           std::string_view Message) {
   auto Request = deserialize<TargetTeamRegion>(Message);
 
   std::vector<uint64_t> TgtArgs(Request.tgt_args_size());
@@ -311,7 +311,7 @@ void ProtobufServerTy::runTargetTeamRegion(size_t InterfaceIdx,
 }
 
 void ProtobufServerTy::unregisterLib(size_t InterfaceIdx,
-                                     std::string &Message) {
+                                     std::string_view Message) {
   SERVER_DBG("Unregistering library")
   auto Request = deserialize<Pointer>(Message);
 
@@ -435,7 +435,7 @@ void CustomServerTy::getNumberOfDevices(size_t InterfaceIdx) {
   Interfaces[InterfaceIdx]->send(GetNumberOfDevices, Response.Message);
 }
 
-void CustomServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
+void CustomServerTy::registerLib(size_t InterfaceIdx, std::string_view Message) {
   dump(Message.data(), Message.data() + Message.size());
   custom::TargetBinaryDescription Request(Message, TBD,
                                           HostToRemoteDeviceImage);
@@ -445,7 +445,7 @@ void CustomServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(RegisterLib, std::string("0"));
 }
 
-void CustomServerTy::isValidBinary(size_t InterfaceIdx, std::string &Message) {
+void CustomServerTy::isValidBinary(size_t InterfaceIdx, std::string_view Message) {
   custom::Pointer Request(Message);
 
   __tgt_device_image *DeviceImage =
@@ -463,7 +463,7 @@ void CustomServerTy::isValidBinary(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(IsValidBinary, Response.Message);
 }
 
-void CustomServerTy::initRequires(size_t InterfaceIdx, std::string &Message) {
+void CustomServerTy::initRequires(size_t InterfaceIdx, std::string_view Message) {
   custom::I64 Request(Message);
 
   for (auto &Device : PM->Devices)
@@ -473,7 +473,7 @@ void CustomServerTy::initRequires(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(InitRequires, Request.Message);
 }
 
-void CustomServerTy::initDevice(size_t InterfaceIdx, std::string &Message) {
+void CustomServerTy::initDevice(size_t InterfaceIdx, std::string_view Message) {
   custom::I32 Request(Message);
 
   custom::I32 Response(PM->Devices[Request.Value].RTL->init_device(
@@ -483,7 +483,7 @@ void CustomServerTy::initDevice(size_t InterfaceIdx, std::string &Message) {
   SERVER_DBG("Initialized device %d, Err: %d", Request.Value, Response.Value);
 }
 
-void CustomServerTy::loadBinary(size_t InterfaceIdx, std::string &Message) {
+void CustomServerTy::loadBinary(size_t InterfaceIdx, std::string_view Message) {
   custom::Binary Request(Message);
 
   __tgt_device_image *Image = HostToRemoteDeviceImage[(void *)Request.Image];
@@ -499,7 +499,7 @@ void CustomServerTy::loadBinary(size_t InterfaceIdx, std::string &Message) {
   }
 }
 
-void CustomServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
+void CustomServerTy::dataAlloc(size_t InterfaceIdx, std::string_view Message) {
   custom::DataAlloc Request(Message);
 
   auto TgtPtr = (uint64_t)PM->Devices[Request.DeviceId].RTL->data_alloc(
@@ -510,7 +510,7 @@ void CustomServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(DataAlloc, Response.Message);
 }
 
-void CustomServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
+void CustomServerTy::dataSubmit(size_t InterfaceIdx, std::string_view Message) {
   custom::DataSubmit Request(Message);
 
   custom::I32 Response(PM->Devices[Request.DeviceId].RTL->data_submit(
@@ -520,7 +520,7 @@ void CustomServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(DataSubmit, Response.Message);
 }
 
-void CustomServerTy::dataRetrieve(size_t InterfaceIdx, std::string &Message) {
+void CustomServerTy::dataRetrieve(size_t InterfaceIdx, std::string_view Message) {
   custom::DataRetrieve Request(Message);
 
   auto HstPtr = std::make_unique<char[]>(Request.DataSize);
@@ -535,7 +535,7 @@ void CustomServerTy::dataRetrieve(size_t InterfaceIdx, std::string &Message) {
 }
 
 void CustomServerTy::runTargetRegion(size_t InterfaceIdx,
-                                     std::string &Message) {
+                                     std::string_view Message) {
   custom::TargetRegion Request(Message);
 
   custom::I32 Response(PM->Devices[Request.DeviceId].RTL->run_region(
@@ -547,7 +547,7 @@ void CustomServerTy::runTargetRegion(size_t InterfaceIdx,
 }
 
 void CustomServerTy::runTargetTeamRegion(size_t InterfaceIdx,
-                                         std::string &Message) {
+                                         std::string_view Message) {
   custom::TargetTeamRegion Request(Message);
 
   custom::I32 Response(PM->Devices[Request.DeviceId].RTL->run_team_region(
@@ -558,7 +558,7 @@ void CustomServerTy::runTargetTeamRegion(size_t InterfaceIdx,
   Interfaces[InterfaceIdx]->send(RunTargetTeamRegion, Response.Message);
 }
 
-void CustomServerTy::dataDelete(size_t InterfaceIdx, std::string &Message) {
+void CustomServerTy::dataDelete(size_t InterfaceIdx, std::string_view Message) {
   custom::DataDelete Request(Message);
 
   custom::I32 Response(PM->Devices[Request.DeviceId].RTL->data_delete(
@@ -567,7 +567,7 @@ void CustomServerTy::dataDelete(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(DataDelete, Response.Message);
 }
 
-void CustomServerTy::unregisterLib(size_t InterfaceIdx, std::string &Message) {
+void CustomServerTy::unregisterLib(size_t InterfaceIdx, std::string_view Message) {
   PM->RTLs.UnregisterLib(TBD);
 
   Interfaces[InterfaceIdx]->send(UnregisterLib, std::string("0"));
@@ -586,7 +586,7 @@ void ServerTy::getNumberOfDevices(size_t InterfaceIdx) {
   Interfaces[InterfaceIdx]->send(GetNumberOfDevices, Serializer->I32(Devices));
 }
 
-void ServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
+void ServerTy::registerLib(size_t InterfaceIdx, std::string_view Message) {
   TBD = Serializer->TargetBinaryDescription(Message, HostToRemoteDeviceImage);
 
   PM->RTLs.RegisterLib(TBD);
@@ -594,7 +594,7 @@ void ServerTy::registerLib(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(RegisterLib, Serializer->EmptyMessage());
 }
 
-void ServerTy::isValidBinary(size_t InterfaceIdx, std::string &Message) {
+void ServerTy::isValidBinary(size_t InterfaceIdx, std::string_view Message) {
   auto Value = Serializer->Pointer(Message);
 
   __tgt_device_image *DeviceImage =
@@ -610,7 +610,7 @@ void ServerTy::isValidBinary(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(IsValidBinary, Serializer->I32(IsValid));
 }
 
-void ServerTy::initRequires(size_t InterfaceIdx, std::string &Message) {
+void ServerTy::initRequires(size_t InterfaceIdx, std::string_view Message) {
   auto Value = Serializer->I64(Message);
 
   for (auto &Device : PM->Devices)
@@ -620,7 +620,7 @@ void ServerTy::initRequires(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(InitRequires, Serializer->I64(Value));
 }
 
-void ServerTy::initDevice(size_t InterfaceIdx, std::string &Message) {
+void ServerTy::initDevice(size_t InterfaceIdx, std::string_view Message) {
   auto DeviceId = Serializer->I32(Message);
 
   auto Value = PM->Devices[DeviceId]->RTL->init_device(
@@ -631,7 +631,7 @@ void ServerTy::initDevice(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(InitDevice, Serializer->I32(Value));
 }
 
-void ServerTy::loadBinary(size_t InterfaceIdx, std::string &Message) {
+void ServerTy::loadBinary(size_t InterfaceIdx, std::string_view Message) {
   auto Request = Serializer->Binary(Message);
 
   __tgt_device_image *Image = HostToRemoteDeviceImage[(void *)Request.second];
@@ -646,7 +646,7 @@ void ServerTy::loadBinary(size_t InterfaceIdx, std::string &Message) {
   }
 }
 
-void ServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
+void ServerTy::dataAlloc(size_t InterfaceIdx, std::string_view Message) {
   auto [DeviceId, AllocSize, HstPtr] = Serializer->DataAlloc(Message);
 
   auto TgtPtr = (uint64_t)PM->Devices[DeviceId]->RTL->data_alloc(
@@ -656,7 +656,7 @@ void ServerTy::dataAlloc(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(DataAlloc, Serializer->Pointer(TgtPtr));
 }
 
-void ServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
+void ServerTy::dataSubmit(size_t InterfaceIdx, std::string_view Message) {
   auto [DeviceId, TgtPtr, HstPtr, DataSize] = Serializer->DataSubmit(Message);
 
   printf("%d, %p, %p, %ld\n", mapHostRTLDeviceId(DeviceId), TgtPtr, HstPtr, DataSize);
@@ -668,7 +668,7 @@ void ServerTy::dataSubmit(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(DataSubmit, Serializer->I32(Ret));
 }
 
-void ServerTy::dataRetrieve(size_t InterfaceIdx, std::string &Message) {
+void ServerTy::dataRetrieve(size_t InterfaceIdx, std::string_view Message) {
   auto [DeviceId, TgtPtr, DataSize] = Serializer->DataRetrieve(Message);
 
   auto HstPtr = std::make_unique<char[]>(DataSize);
@@ -680,33 +680,32 @@ void ServerTy::dataRetrieve(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(DataRetrieve, Serializer->Data(HstPtr.get(), DataSize, Value));
 }
 
-void ServerTy::runTargetRegion(size_t InterfaceIdx, std::string &Message) {
-  auto Request = Serializer->TargetRegion(Message);
-
-  // custom::I32 Response(PM->Devices[Request.DeviceId]->RTL->run_region(
-  //     mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
-  //     (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets,
-  //     Request.ArgNum));
+void ServerTy::runTargetRegion(size_t InterfaceIdx, std::string_view Message) {
+  auto [DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets, ArgNum] = Serializer->TargetRegion(Message);
 
   auto Ret = 0;
+
+  Ret = PM->Devices[DeviceId]->RTL->run_region(
+      mapHostRTLDeviceId(DeviceId), (void *)TgtEntryPtr,
+      (void **)TgtArgs, (ptrdiff_t *)TgtOffsets,
+      ArgNum);
 
   Interfaces[InterfaceIdx]->send(RunTargetRegion, Serializer->I32(Ret));
 }
 
-void ServerTy::runTargetTeamRegion(size_t InterfaceIdx, std::string &Message) {
-  auto Request = Serializer->TargetTeamRegion(Message);
-
-  // custom::I32 Response(PM->Devices[Request.DeviceId]->RTL->run_team_region(
-  //     mapHostRTLDeviceId(Request.DeviceId), (void *)Request.TgtEntryPtr,
-  //     (void **)Request.TgtArgs, (ptrdiff_t *)Request.TgtOffsets, Request.ArgNum,
-  //     Request.TeamNum, Request.ThreadLimit, Request.LoopTripCount));
-
+void ServerTy::runTargetTeamRegion(size_t InterfaceIdx, std::string_view Message) {
+  auto [DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets, ArgNum, TeamNum, ThreadLimit, LoopTripCount] = Serializer->TargetTeamRegion(Message);
   auto Ret = 0;
+
+  Ret = PM->Devices[DeviceId]->RTL->run_team_region(
+      mapHostRTLDeviceId(DeviceId), (void *)TgtEntryPtr,
+      (void **)TgtArgs, (ptrdiff_t *)TgtOffsets, ArgNum,
+      TeamNum, ThreadLimit, LoopTripCount);
 
   Interfaces[InterfaceIdx]->send(RunTargetTeamRegion, Serializer->I32(Ret));
 }
 
-void ServerTy::dataDelete(size_t InterfaceIdx, std::string &Message) {
+void ServerTy::dataDelete(size_t InterfaceIdx, std::string_view Message) {
   auto [DeviceId, TgtPtr] = Serializer->DataDelete(Message);
 
   auto Ret = PM->Devices[DeviceId]->RTL->data_delete(
@@ -715,7 +714,7 @@ void ServerTy::dataDelete(size_t InterfaceIdx, std::string &Message) {
   Interfaces[InterfaceIdx]->send(DataDelete, Serializer->I32(Ret));
 }
 
-void ServerTy::unregisterLib(size_t InterfaceIdx, std::string &Message) {
+void ServerTy::unregisterLib(size_t InterfaceIdx, std::string_view Message) {
   PM->RTLs.UnregisterLib(TBD);
 
   Interfaces[InterfaceIdx]->send(UnregisterLib, Serializer->EmptyMessage());

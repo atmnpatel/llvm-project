@@ -8,7 +8,7 @@ std::string CustomSerializerTy::I32(int32_t Value) {
   return Message.Message;
 }
 
-int32_t CustomSerializerTy::I32(std::string Message) {
+int32_t CustomSerializerTy::I32(std::string_view Message) {
   transport::ucx::custom::I32 Response(Message);
   return Response.Value;
 }
@@ -18,7 +18,7 @@ std::string CustomSerializerTy::I64(int64_t Value) {
   return Message.Message;
 }
 
-int64_t CustomSerializerTy::I64(std::string Message) {
+int64_t CustomSerializerTy::I64(std::string_view Message) {
   transport::ucx::custom::I64 Response(Message);
   return Response.Value;
 }
@@ -29,7 +29,7 @@ std::string CustomSerializerTy::TargetBinaryDescription(__tgt_bin_desc *TBD) {
 }
 
 __tgt_bin_desc *CustomSerializerTy::TargetBinaryDescription(
-    std::string Message,
+    std::string_view Message,
     std::unordered_map<const void *, __tgt_device_image *> &DeviceImages) {
   auto *TBD = new __tgt_bin_desc();
   transport::ucx::custom::TargetBinaryDescription Response(Message, TBD,
@@ -42,7 +42,7 @@ std::string CustomSerializerTy::Pointer(uintptr_t Pointer) {
   return Message.Message;
 }
 
-void *CustomSerializerTy::Pointer(std::string Message) {
+void *CustomSerializerTy::Pointer(std::string_view Message) {
   transport::ucx::custom::Pointer Response(Message);
   return Response.Value;
 }
@@ -54,7 +54,7 @@ std::string CustomSerializerTy::Binary(int32_t DeviceId,
 }
 
 std::pair<int32_t, __tgt_device_image *>
-CustomSerializerTy::Binary(std::string Message) {
+CustomSerializerTy::Binary(std::string_view Message) {
   transport::ucx::custom::Binary Response(std::move(Message));
   return {Response.DeviceId, (__tgt_device_image *)Response.Image};
 }
@@ -65,7 +65,7 @@ std::string CustomSerializerTy::TargetTable(__tgt_target_table *TT) {
 }
 
 __tgt_target_table *CustomSerializerTy::TargetTable(
-    std::string Message,
+    std::string_view Message,
     std::unordered_map<void *, void *> &HostToRemoteTargetTableMap) {
   transport::ucx::custom::TargetTable Table(Message);
   return Table.Table;
@@ -78,7 +78,7 @@ std::string CustomSerializerTy::DataAlloc(int32_t DeviceId, int64_t Size,
 }
 
 std::tuple<int32_t, int64_t, void *>
-CustomSerializerTy::DataAlloc(std::string Message) {
+CustomSerializerTy::DataAlloc(std::string_view Message) {
   transport::ucx::custom::DataAlloc Request(Message);
   return {Request.DeviceId, Request.AllocSize, (void *)Request.HstPtr};
 }
@@ -89,7 +89,7 @@ std::string CustomSerializerTy::DataDelete(int32_t DeviceId, void *TgtPtr) {
 }
 
 std::tuple<int32_t, void *>
-CustomSerializerTy::DataDelete(std::string Message) {
+CustomSerializerTy::DataDelete(std::string_view Message) {
   transport::ucx::custom::DataDelete Request(Message);
   return {Request.DeviceId, (void *)Request.TgtPtr};
 }
@@ -101,7 +101,7 @@ std::string CustomSerializerTy::DataSubmit(int32_t DeviceId, void *TgtPtr,
 }
 
 std::tuple<int32_t, void *, void *, int64_t>
-CustomSerializerTy::DataSubmit(std::string Message) {
+CustomSerializerTy::DataSubmit(std::string_view Message) {
   transport::ucx::custom::DataSubmit Request(Message);
 
   return {Request.DeviceId, (void *)Request.TgtPtr, (void *)Request.HstPtr,
@@ -115,7 +115,7 @@ std::string CustomSerializerTy::DataRetrieve(int32_t DeviceId, void *TgtPtr,
 }
 
 std::tuple<int32_t, void *, int64_t>
-CustomSerializerTy::DataRetrieve(std::string Message) {
+CustomSerializerTy::DataRetrieve(std::string_view Message) {
   transport::ucx::custom::DataRetrieve Request(Message);
   return {Request.DeviceId, (void *)Request.TgtPtr, Request.DataSize};
 }
@@ -127,7 +127,7 @@ std::string CustomSerializerTy::Data(void *DataBuffer, size_t Size,
 }
 
 std::tuple<void *, size_t, int32_t>
-CustomSerializerTy::Data(std::string Message) {
+CustomSerializerTy::Data(std::string_view Message) {
   transport::ucx::custom::Data Request(Message);
   return {(void *)Request.DataBuffer, Request.DataSize, Request.Value};
 }
@@ -141,7 +141,7 @@ std::string CustomSerializerTy::TargetRegion(
 }
 
 std::tuple<int32_t, void *, void **, ptrdiff_t *, int32_t>
-CustomSerializerTy::TargetRegion(std::string Message) {
+CustomSerializerTy::TargetRegion(std::string_view Message) {
   transport::ucx::custom::TargetRegion Request(Message);
 
   return {Request.DeviceId, (void *)Request.TgtEntryPtr,
@@ -161,7 +161,7 @@ std::string CustomSerializerTy::TargetTeamRegion(
 
 std::tuple<int32_t, void *, void **, ptrdiff_t *, int32_t, int32_t, int32_t,
            uint64_t>
-CustomSerializerTy::TargetTeamRegion(std::string Message) {
+CustomSerializerTy::TargetTeamRegion(std::string_view Message) {
   transport::ucx::custom::TargetTeamRegion Request(Message);
   return {Request.DeviceId,    Request.TgtEntryPtr,  Request.TgtArgs,
           Request.TgtOffsets,  Request.ArgNum,       Request.TeamNum,
@@ -174,9 +174,9 @@ std::string ProtobufSerializerTy::I32(int32_t Value) {
   return Message.SerializeAsString();
 }
 
-int32_t ProtobufSerializerTy::I32(std::string Message) {
+int32_t ProtobufSerializerTy::I32(std::string_view Message) {
   transport::messages::I32 Response;
-  Response.ParseFromString(Message);
+  Response.ParseFromString(std::string(Message));
   return Response.number();
 }
 
@@ -186,9 +186,9 @@ std::string ProtobufSerializerTy::I64(int64_t Value) {
   return Message.SerializeAsString();
 }
 
-int64_t ProtobufSerializerTy::I64(std::string Message) {
+int64_t ProtobufSerializerTy::I64(std::string_view Message) {
   transport::messages::I64 Response;
-  Response.ParseFromString(Message);
+  Response.ParseFromString(std::string(Message));
   return Response.number();
 }
 
@@ -199,11 +199,11 @@ std::string ProtobufSerializerTy::TargetBinaryDescription(__tgt_bin_desc *TBD) {
 }
 
 __tgt_bin_desc *ProtobufSerializerTy::TargetBinaryDescription(
-    std::string Message,
+    std::string_view Message,
     std::unordered_map<const void *, __tgt_device_image *> &DeviceImages) {
   transport::messages::TargetBinaryDescription Response;
   auto *TBD = new __tgt_bin_desc();
-  Response.ParseFromString(Message);
+  Response.ParseFromString(std::string(Message));
   unloadTargetBinaryDescription(&Response, TBD, DeviceImages);
   return TBD;
 }
@@ -214,9 +214,9 @@ std::string ProtobufSerializerTy::Pointer(uintptr_t Pointer) {
   return Message.SerializeAsString();
 }
 
-void *ProtobufSerializerTy::Pointer(std::string Message) {
+void *ProtobufSerializerTy::Pointer(std::string_view Message) {
   transport::messages::Pointer Response;
-  Response.ParseFromString(Message);
+  Response.ParseFromString(std::string(Message));
   return (void *)Response.number();
 }
 
@@ -229,9 +229,9 @@ std::string ProtobufSerializerTy::Binary(int32_t DeviceId,
 }
 
 std::pair<int32_t, __tgt_device_image *>
-ProtobufSerializerTy::Binary(std::string Message) {
+ProtobufSerializerTy::Binary(std::string_view Message) {
   transport::messages::Binary Response;
-  if (!Response.ParseFromString(Message))
+  if (!Response.ParseFromString(std::string(Message)))
     llvm::report_fatal_error("Could not parse Protobuf Message");
   return {Response.device_id(), (__tgt_device_image *)Response.image_ptr()};
 }
@@ -243,11 +243,11 @@ std::string ProtobufSerializerTy::TargetTable(__tgt_target_table *TT) {
 }
 
 __tgt_target_table *ProtobufSerializerTy::TargetTable(
-    std::string Message,
+    std::string_view Message,
     std::unordered_map<void *, void *> &HostToRemoteTargetTableMap) {
   transport::messages::TargetTable Table;
   auto *TT = new __tgt_target_table;
-  Table.ParseFromString(Message);
+  Table.ParseFromString(std::string(Message));
   unloadTargetTable(Table, TT, HostToRemoteTargetTableMap);
   return TT;
 }
@@ -262,9 +262,9 @@ std::string ProtobufSerializerTy::DataAlloc(int32_t DeviceId, int64_t Size,
 }
 
 std::tuple<int32_t, int64_t, void *>
-ProtobufSerializerTy::DataAlloc(std::string Message) {
+ProtobufSerializerTy::DataAlloc(std::string_view Message) {
   transport::messages::AllocData Request;
-  Request.ParseFromString(Message);
+  Request.ParseFromString(std::string(Message));
   return {Request.device_id(), Request.size(), (void *)Request.hst_ptr()};
 }
 
@@ -276,9 +276,9 @@ std::string ProtobufSerializerTy::DataDelete(int32_t DeviceId, void *TgtPtr) {
 }
 
 std::tuple<int32_t, void *>
-ProtobufSerializerTy::DataDelete(std::string Message) {
+ProtobufSerializerTy::DataDelete(std::string_view Message) {
   transport::messages::DeleteData Request;
-  Request.ParseFromString(Message);
+  Request.ParseFromString(std::string(Message));
   return {Request.device_id(), (void *)Request.tgt_ptr()};
 }
 
@@ -293,9 +293,9 @@ std::string ProtobufSerializerTy::DataSubmit(int32_t DeviceId, void *TgtPtr,
 }
 
 std::tuple<int32_t, void *, void *, int64_t>
-ProtobufSerializerTy::DataSubmit(std::string Message) {
+ProtobufSerializerTy::DataSubmit(std::string_view Message) {
   transport::messages::SubmitData * Request = new transport::messages::SubmitData();
-  Request->ParseFromString(Message);
+  Request->ParseFromString(std::string(Message));
 
   return {Request->device_id(),(void *)Request->tgt_ptr(),  (void *)Request->data().data(),
           (int64_t)Request->data().size()};
@@ -311,9 +311,9 @@ std::string ProtobufSerializerTy::DataRetrieve(int32_t DeviceId, void *TgtPtr,
 }
 
 std::tuple<int32_t, void *, int64_t>
-ProtobufSerializerTy::DataRetrieve(std::string Message) {
+ProtobufSerializerTy::DataRetrieve(std::string_view Message) {
   transport::messages::RetrieveData Request;
-  Request.ParseFromString(Message);
+  Request.ParseFromString(std::string(Message));
   return {Request.device_id(), (void *)Request.tgt_ptr(), Request.size()};
 }
 
@@ -326,9 +326,9 @@ std::string ProtobufSerializerTy::Data(void *DataBuffer, size_t Size,
 }
 
 std::tuple<void *, size_t, int32_t>
-ProtobufSerializerTy::Data(std::string Message) {
+ProtobufSerializerTy::Data(std::string_view Message) {
   transport::messages::Data *Request = new transport::messages::Data();
-  Request->ParseFromString(Message);
+  Request->ParseFromString(std::string(Message));
   return {(void *)Request->data().data(), Request->data().size(), Request->ret()};
 }
 
@@ -352,9 +352,9 @@ std::string ProtobufSerializerTy::TargetRegion(
 }
 
 std::tuple<int32_t, void *, void **, ptrdiff_t *, int32_t>
-ProtobufSerializerTy::TargetRegion(std::string Message) {
+ProtobufSerializerTy::TargetRegion(std::string_view Message) {
   transport::messages::TargetRegion Request;
-  Request.ParseFromString(Message);
+  Request.ParseFromString(std::string(Message));
 
   std::vector<uint64_t> TgtArgs(Request.tgt_args_size());
   for (auto I = 0; I < Request.tgt_args_size(); I++)
@@ -396,9 +396,9 @@ std::string ProtobufSerializerTy::TargetTeamRegion(
 
 std::tuple<int32_t, void *, void **, ptrdiff_t *, int32_t, int32_t, int32_t,
            uint64_t>
-ProtobufSerializerTy::TargetTeamRegion(std::string Message) {
+ProtobufSerializerTy::TargetTeamRegion(std::string_view Message) {
   transport::messages::TargetTeamRegion Request;
-  Request.ParseFromString(Message);
+  Request.ParseFromString(std::string(Message));
 
   std::vector<uint64_t> TgtArgs(Request.tgt_args_size());
   for (auto I = 0; I < Request.tgt_args_size(); I++)

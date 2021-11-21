@@ -14,7 +14,6 @@
 
 #include "Client.h"
 #include "omptarget.h"
-#include "grpc.pb.h"
 
 using namespace std::chrono;
 

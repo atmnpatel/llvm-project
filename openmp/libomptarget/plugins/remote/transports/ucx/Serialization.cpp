@@ -14,8 +14,8 @@ MessageTy::MessageTy(size_t Size)
   CurBuffer = Message.data();
 }
 
-MessageTy::MessageTy(std::string M)
-    : Message(M), CurBuffer(Message.data()) {
+MessageTy::MessageTy(std::string_view M)
+    : CurBuffer(const_cast<char *>(M.data())) {
 }
 
 void MessageTy::serialize(uintptr_t Value) {
@@ -116,13 +116,13 @@ I32::I32(int32_t Value) : MessageTy(sizeof(Value)), Value(Value) {
   serialize(Value);
 }
 
-I32::I32(std::string MessageBuffer) : MessageTy(MessageBuffer) {
+I32::I32(std::string_view MessageBuffer) : MessageTy(MessageBuffer) {
   Value = *((int32_t *)CurBuffer);
 }
 
 I64::I64(int64_t Value) : MessageTy(sizeof(Value)) { serialize(Value); }
 
-I64::I64(std::string MessageBuffer) : MessageTy(MessageBuffer) {
+I64::I64(std::string_view MessageBuffer) : MessageTy(MessageBuffer) {
   std::memcpy(&Value, CurBuffer, sizeof(int64_t));
 }
 
@@ -130,7 +130,7 @@ Pointer::Pointer(uintptr_t Value) : MessageTy(sizeof(Value)) {
   serialize(Value);
 }
 
-Pointer::Pointer(std::string MessageBuffer) : MessageTy(MessageBuffer) {
+Pointer::Pointer(std::string_view MessageBuffer) : MessageTy(MessageBuffer) {
   std::memcpy(&Value, CurBuffer, sizeof(uintptr_t));
 }
 
@@ -191,7 +191,7 @@ TargetBinaryDescription::TargetBinaryDescription(__tgt_bin_desc *Description) {
 }
 
 TargetBinaryDescription::TargetBinaryDescription(
-    std::string &MessageBuffer, __tgt_bin_desc *Description,
+    std::string_view MessageBuffer, __tgt_bin_desc *Description,
     std::unordered_map<const void *, __tgt_device_image *>
         &HostToRemoteDeviceImage)
     : MessageTy(MessageBuffer) {
@@ -226,7 +226,7 @@ Binary::Binary(int32_t DeviceId, __tgt_device_image *Image)
   serialize((uintptr_t)Image);
 }
 
-Binary::Binary(std::string MessageBuffer) : MessageTy(MessageBuffer) {
+Binary::Binary(std::string_view MessageBuffer) : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   Image = deserializePointer();
 }
@@ -253,7 +253,7 @@ TargetTable::TargetTable(__tgt_target_table *Table) {
     serialize(CurEntry);
 }
 
-TargetTable::TargetTable(std::string MessageBuffer)
+TargetTable::TargetTable(std::string_view MessageBuffer)
     : MessageTy(MessageBuffer) {
   Table = new __tgt_target_table;
 
@@ -277,7 +277,7 @@ DataAlloc::DataAlloc(int32_t DeviceId, int64_t AllocSize, void *HstPtr) {
   serialize((uintptr_t)HstPtr);
 }
 
-DataAlloc::DataAlloc(std::string MessageBuffer)
+DataAlloc::DataAlloc(std::string_view MessageBuffer)
     : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   deserialize(AllocSize);
@@ -290,7 +290,7 @@ DataDelete::DataDelete(int32_t DeviceId, void *TgtPtr)
   serialize((uintptr_t)TgtPtr);
 }
 
-DataDelete::DataDelete(std::string MessageBuffer)
+DataDelete::DataDelete(std::string_view MessageBuffer)
     : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   TgtPtr = deserializePointer();
@@ -305,7 +305,7 @@ DataSubmit::DataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
   serialize((void *)HstPtr, (void *)((char *)HstPtr + DataSize));
 }
 
-DataSubmit::DataSubmit(std::string MessageBuffer)
+DataSubmit::DataSubmit(std::string_view MessageBuffer)
     : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   TgtPtr = deserializePointer();
@@ -324,7 +324,7 @@ DataRetrieve::DataRetrieve(int32_t DeviceId, void *TgtPtr,
   serialize(DataSize);
 }
 
-DataRetrieve::DataRetrieve(std::string MessageBuffer)
+DataRetrieve::DataRetrieve(std::string_view MessageBuffer)
     : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   TgtPtr = deserializePointer();
@@ -337,7 +337,7 @@ Data::Data(int32_t Value, char *Buffer, size_t DataSize)
   serialize(Buffer, Buffer + DataSize);
 }
 
-Data::Data(std::string MessageBuffer) : MessageTy(MessageBuffer) {
+Data::Data(std::string_view MessageBuffer) : MessageTy(MessageBuffer) {
   deserialize(Value);
   DataBuffer = nullptr;
   void *BufferEnd = nullptr;
@@ -358,7 +358,7 @@ TargetRegion::TargetRegion(int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs,
     serialize(TgtOffsets[I]);
 }
 
-TargetRegion::TargetRegion(std::string MessageBuffer)
+TargetRegion::TargetRegion(std::string_view MessageBuffer)
     : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   TgtEntryPtr = deserializePointer();
@@ -390,7 +390,7 @@ TargetTeamRegion::TargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
   serialize(LoopTripCount);
 }
 
-TargetTeamRegion::TargetTeamRegion(std::string MessageBuffer)
+TargetTeamRegion::TargetTeamRegion(std::string_view MessageBuffer)
     : MessageTy(MessageBuffer) {
   deserialize(DeviceId);
   TgtEntryPtr = deserializePointer();

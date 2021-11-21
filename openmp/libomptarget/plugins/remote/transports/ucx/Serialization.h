@@ -74,7 +74,7 @@ protected:
 public:
   MessageTy() = default;
   MessageTy(size_t Size);
-  MessageTy(std::string MessageBuffer);
+  MessageTy(std::string_view MessageBuffer);
   virtual ~MessageTy() = default;
 
   std::string Message;
@@ -85,26 +85,26 @@ struct I32 : public MessageTy {
   int32_t Value;
 
   explicit I32(int32_t Value);
-  I32(std::string MessageBuffer);
+  I32(std::string_view MessageBuffer);
 };
 
 struct I64 : public MessageTy {
   int64_t Value;
 
   explicit I64(int64_t Value);
-  I64(std::string MessageBuffer);
+  I64(std::string_view MessageBuffer);
 };
 
 struct Pointer : public MessageTy {
   void *Value;
 
   explicit Pointer(uintptr_t Value);
-  Pointer(std::string MessageBuffer);
+  Pointer(std::string_view MessageBuffer);
 };
 
 struct TargetBinaryDescription : public MessageTy {
   explicit TargetBinaryDescription(__tgt_bin_desc *TBD);
-  TargetBinaryDescription(std::string &MessageBuffer, __tgt_bin_desc *TBD,
+  TargetBinaryDescription(std::string_view MessageBuffer, __tgt_bin_desc *TBD,
                           std::unordered_map<const void *, __tgt_device_image *>
                               &HostToRemoteDeviceImage);
 };
@@ -114,14 +114,14 @@ struct Binary : public MessageTy {
   void *Image;
 
   Binary(int32_t DeviceId, __tgt_device_image *Image);
-  Binary(std::string MessageBuffer);
+  Binary(std::string_view MessageBuffer);
 };
 
 struct TargetTable : public MessageTy {
   __tgt_target_table *Table;
 
   TargetTable(__tgt_target_table *Table);
-  TargetTable(std::string MessageBuffer);
+  TargetTable(std::string_view MessageBuffer);
 };
 
 struct DataAlloc : public MessageTy {
@@ -130,7 +130,7 @@ struct DataAlloc : public MessageTy {
   void *HstPtr;
 
   DataAlloc(int32_t DeviceId, int64_t Size, void *HstPtr);
-  DataAlloc(std::string MessageBuffer);
+  DataAlloc(std::string_view MessageBuffer);
 };
 
 struct DataDelete : public MessageTy {
@@ -138,7 +138,7 @@ struct DataDelete : public MessageTy {
   void *TgtPtr;
 
   DataDelete(int32_t DeviceId, void *TgtPtr);
-  DataDelete(std::string MessageBuffer);
+  DataDelete(std::string_view MessageBuffer);
 };
 
 struct DataSubmit : public MessageTy {
@@ -147,7 +147,7 @@ struct DataSubmit : public MessageTy {
   int64_t DataSize;
 
   DataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr, int64_t DataSize);
-  DataSubmit(std::string MessageBuffer);
+  DataSubmit(std::string_view MessageBuffer);
 };
 
 struct DataRetrieve : public MessageTy {
@@ -156,7 +156,7 @@ struct DataRetrieve : public MessageTy {
   int64_t DataSize;
 
   DataRetrieve(int32_t DeviceId, void *TgtPtr, int64_t DataSize);
-  DataRetrieve(std::string MessageBuffer);
+  DataRetrieve(std::string_view MessageBuffer);
 };
 
 struct Data : public MessageTy {
@@ -165,7 +165,7 @@ struct Data : public MessageTy {
   size_t DataSize;
 
   Data(int32_t Value, char *DataBuffer, size_t DataSize);
-  Data(std::string MessageBuffer);
+  Data(std::string_view MessageBuffer);
 };
 
 struct TargetRegion : public MessageTy {
@@ -177,7 +177,7 @@ struct TargetRegion : public MessageTy {
 
   TargetRegion(int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs,
                ptrdiff_t *TgtOffsets, int32_t ArgNum);
-  TargetRegion(std::string MessageBuffer);
+  TargetRegion(std::string_view MessageBuffer);
 };
 
 struct TargetTeamRegion : public MessageTy {
@@ -193,7 +193,7 @@ struct TargetTeamRegion : public MessageTy {
   TargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs,
                    ptrdiff_t *TgtOffsets, int32_t ArgNum, int32_t TeamNum,
                    int32_t ThreadLimit, uint64_t LoopTripCount);
-  TargetTeamRegion(std::string MessageBuffer);
+  TargetTeamRegion(std::string_view MessageBuffer);
 };
 } // namespace custom
 

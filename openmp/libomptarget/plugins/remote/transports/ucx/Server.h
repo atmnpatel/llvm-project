@@ -53,18 +53,18 @@ public:
 
   void run();
   void getNumberOfDevices(size_t InterfaceIdx);
-  void registerLib(size_t InterfaceIdx, std::string &Message);
-  void isValidBinary(size_t InterfaceIdx, std::string &Message);
-  void initRequires(size_t InterfaceIdx, std::string &Message);
-  void initDevice(size_t InterfaceIdx, std::string &Message);
-  void loadBinary(size_t InterfaceIdx, std::string &Message);
-  void dataAlloc(size_t InterfaceIdx, std::string &Message);
-  void dataSubmit(size_t InterfaceIdx, std::string &Message);
-  void dataRetrieve(size_t InterfaceIdx, std::string &Message);
-  void runTargetRegion(size_t InterfaceIdx, std::string &Message);
-  void runTargetTeamRegion(size_t InterfaceIdx, std::string &Message);
-  void dataDelete(size_t InterfaceIdx, std::string &Message);
-  void unregisterLib(size_t InterfaceIdx, std::string &Message);
+  void registerLib(size_t InterfaceIdx, std::string_view Message);
+  void isValidBinary(size_t InterfaceIdx, std::string_view Message);
+  void initRequires(size_t InterfaceIdx, std::string_view Message);
+  void initDevice(size_t InterfaceIdx, std::string_view Message);
+  void loadBinary(size_t InterfaceIdx, std::string_view Message);
+  void dataAlloc(size_t InterfaceIdx, std::string_view Message);
+  void dataSubmit(size_t InterfaceIdx, std::string_view Message);
+  void dataRetrieve(size_t InterfaceIdx, std::string_view Message);
+  void runTargetRegion(size_t InterfaceIdx, std::string_view Message);
+  void runTargetTeamRegion(size_t InterfaceIdx, std::string_view Message);
+  void dataDelete(size_t InterfaceIdx, std::string_view Message);
+  void unregisterLib(size_t InterfaceIdx, std::string_view Message);
 };
 
 class ServerTy::ListenerTy {
