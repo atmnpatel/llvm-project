@@ -49,8 +49,6 @@ void unloadTargetBinaryDescription(
   __tgt_device_image *CurImage = Desc->DeviceImages;
   for (const auto &Image : Request->images()) {
     HostToRemoteDeviceImage[(void *)Image.img_ptr()] = CurImage;
-    printf("Saved %p -> %p\n", (void *) Image.img_ptr(), CurImage);
-
     CurImage->EntriesBegin = new __tgt_offload_entry[Image.entries_size()];
     CurEntry = CurImage->EntriesBegin;
 
@@ -174,7 +172,6 @@ void dump(const __tgt_bin_desc *Desc) {
     for (auto *Entry = Image->EntriesBegin; Entry != Image->EntriesEnd; Entry++) {
       dump(Entry);
     }
-//    dump((char *) Image->ImageStart, (char *) Image->ImageEnd);
   }
 }
 

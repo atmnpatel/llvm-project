@@ -76,6 +76,10 @@ struct Base {
 
     std::atomic<bool> Running = true;
 
+    std::vector<char> Buffer;
+
+    std::mutex SendFuturesMtx;
+
     InterfaceTy(ContextTy &Context, const ConnectionConfigTy &Config);
     InterfaceTy(ContextTy &Context, ucp_conn_request_h ConnRequest);
     ~InterfaceTy();

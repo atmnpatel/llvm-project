@@ -23,47 +23,14 @@ protected:
   std::map<int32_t, std::unique_ptr<__tgt_target_table>> DevicesToTables{};
 
   std::string send(MessageKind Kind, std::string Message) {
-    /*
-    if (MultiThreaded) {
-      auto SendFuture = asyncSend(Kind, Message);
-      auto RecvFuture = asyncRecv(SendFuture.Tag);
-
-      WorkAvailable.notify_all();
-
-      std::unique_lock<std::mutex> UniqueLock((WorkDoneMtx));
-      WorkDone.wait(UniqueLock, [&]() {
-        return ((bool)*SendFuture.IsCompleted) &&
-               ((bool)*RecvFuture.IsCompleted);
-      });
-
-      return {*RecvFuture.Buffer};
-    } else {
-     */
-
-    Interfaces[0]->send(Kind, Message);
-    return Interfaces[0]->receive().second;
+    Interface->send(Kind, Message);
+    return Interface->receive().second;
   }
 
 public:
   ClientTy(ConnectionConfigTy Config, SerializerType Type);
   ConnectionConfigTy Config;
-  std::map<std::thread::id, size_t> InterfaceId;
-  std::vector<std::unique_ptr<Base::InterfaceTy>> Interfaces;
-
-  size_t getInterfaceIdx() {
-    std::stringstream SS;
-    SS << std::this_thread::get_id();
-
-    if (!InterfaceId.contains(std::this_thread::get_id())) {
-      auto Interface = std::make_unique<InterfaceTy>(Context, Config);
-      Interfaces.push_back(std::move(Interface));
-      InterfaceId[std::this_thread::get_id()] = Interfaces.size() - 1;
-    }
-
-    auto NextInterfaceIdx = InterfaceId[std::this_thread::get_id()];
-    return NextInterfaceIdx;
-  }
-
+  std::unique_ptr<Base::InterfaceTy> Interface;
 
   int32_t registerLib(__tgt_bin_desc *Desc) override;
   int32_t unregisterLib(__tgt_bin_desc *Desc) override;

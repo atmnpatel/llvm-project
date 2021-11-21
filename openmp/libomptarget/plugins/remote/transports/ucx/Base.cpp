@@ -140,9 +140,8 @@ void Base::InterfaceTy::send(MessageKind Type, std::string Message) {
   if (UCS_PTR_IS_ERR(Fut->Request))
     ERR("failed to send message {0}\n", ucs_status_string(UCS_PTR_STATUS(Req)))
 
+  std::lock_guard Guard(SendFuturesMtx);
   SendFutures.emplace(Fut);
-
-//  await(Fut);
 }
 
 bool Base::InterfaceTy::await(SendFutureTy *Future) {
@@ -192,10 +191,12 @@ std::pair<MessageKind, std::string> Base::InterfaceTy::receive() {
   ucp_tag_message_h MsgTag;
 
   while (Running) {
+    std::unique_lock Latch(SendFuturesMtx);
     if (!SendFutures.empty() && await(SendFutures.front())) {
       delete SendFutures.front();
       SendFutures.pop();
     }
+    Latch.unlock();
     MsgTag = ucp_tag_probe_nb(Worker, SlabTag, TAG_MASK, 1, &InfoTag);
     if (MsgTag != nullptr)
       break;
@@ -211,17 +212,13 @@ std::pair<MessageKind, std::string> Base::InterfaceTy::receive() {
   if (!Running)
     return {};
 
-  auto Buffer = std::make_unique<char[]>(InfoTag.length);
-
-//  std::string ReceiveBuffer;
-//  ReceiveBuffer.resize(InfoTag.length);
+  std::string ReceiveBuffer;
+  ReceiveBuffer.resize(InfoTag.length);
   auto *Request = (RequestStatus *)ucp_tag_msg_recv_nb(
-      Worker, Buffer.get(), InfoTag.length, ucp_dt_make_contig(1), MsgTag,
+      Worker, ReceiveBuffer.data(), InfoTag.length, ucp_dt_make_contig(1), MsgTag,
       receiveCallback);
 
   wait(Request);
-
-  std::string ReceiveBuffer(Buffer.get(), InfoTag.length);
 
   return {(MessageKind)(InfoTag.sender_tag >> 60), ReceiveBuffer};
 }

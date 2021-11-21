@@ -14,7 +14,7 @@ namespace transport::ucx {
 class ServerTy : public Base {
 protected:
   /* UCX Interfaces */
-  std::vector<std::unique_ptr<InterfaceTy>> Interfaces;
+  std::unique_ptr<InterfaceTy> Interface;
 
   /* Map Host Device Images to Remote Device Images */
   std::unordered_map<const void *, __tgt_device_image *>
@@ -35,15 +35,16 @@ protected:
   /* Unique Target Binary Description */
   __tgt_bin_desc *TBD;
 
-  /* Thread */
-  std::thread Thread;
-
   int32_t Devices = 0;
   std::atomic<bool> Running;
 
   SerializerTy *Serializer;
 
-  uint64_t Tag = 0;
+  std::mutex QueueMtx;
+  int BusyThreads = 0;
+  std::condition_variable TaskAvailable, TaskFinished;
+  std::vector<std::thread> ThreadPool;
+  std::queue<std::pair<MessageKind, std::string>> Tasks;
 
 public:
   ServerTy(SerializerType Type);
@@ -52,19 +53,21 @@ public:
   void listenForConnections(const ConnectionConfigTy &Config);
 
   void run();
-  void getNumberOfDevices(size_t InterfaceIdx);
-  void registerLib(size_t InterfaceIdx, std::string_view Message);
-  void isValidBinary(size_t InterfaceIdx, std::string_view Message);
-  void initRequires(size_t InterfaceIdx, std::string_view Message);
-  void initDevice(size_t InterfaceIdx, std::string_view Message);
-  void loadBinary(size_t InterfaceIdx, std::string_view Message);
-  void dataAlloc(size_t InterfaceIdx, std::string_view Message);
-  void dataSubmit(size_t InterfaceIdx, std::string_view Message);
-  void dataRetrieve(size_t InterfaceIdx, std::string_view Message);
-  void runTargetRegion(size_t InterfaceIdx, std::string_view Message);
-  void runTargetTeamRegion(size_t InterfaceIdx, std::string_view Message);
-  void dataDelete(size_t InterfaceIdx, std::string_view Message);
-  void unregisterLib(size_t InterfaceIdx, std::string_view Message);
+  void getNumberOfDevices();
+  void registerLib(std::string_view Message);
+  void isValidBinary(std::string_view Message);
+  void initRequires(std::string_view Message);
+  void initDevice(std::string_view Message);
+  void loadBinary(std::string_view Message);
+  void dataAlloc(std::string_view Message);
+  void dataSubmit(std::string_view Message);
+  void dataRetrieve(std::string_view Message);
+  void runTargetRegion(std::string_view Message);
+  void runTargetTeamRegion(std::string_view Message);
+  void dataDelete(std::string_view Message);
+  void unregisterLib(std::string_view Message);
+
+  void process(MessageKind Kind, std::string_view Message);
 };
 
 class ServerTy::ListenerTy {
