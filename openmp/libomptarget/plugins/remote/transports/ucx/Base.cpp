@@ -183,7 +183,7 @@ void Base::InterfaceTy::wait(RequestStatus *Request) {
   }
 }
 
-std::pair<MessageKind, std::string> Base::InterfaceTy::receive() {
+MessageTy Base::InterfaceTy::receive() {
   auto SlabTag = LastRecvTag++;
 
   ucp_tag_recv_info_t InfoTag;
@@ -212,15 +212,14 @@ std::pair<MessageKind, std::string> Base::InterfaceTy::receive() {
   if (!Running)
     return {};
 
-  std::string ReceiveBuffer;
-  ReceiveBuffer.resize(InfoTag.length);
+  char * ReceiveBuffer = new char[InfoTag.length];
   auto *Request = (RequestStatus *)ucp_tag_msg_recv_nb(
-      Worker, ReceiveBuffer.data(), InfoTag.length, ucp_dt_make_contig(1), MsgTag,
+      Worker, ReceiveBuffer, InfoTag.length, ucp_dt_make_contig(1), MsgTag,
       receiveCallback);
 
   wait(Request);
 
-  return {(MessageKind)(InfoTag.sender_tag >> 60), ReceiveBuffer};
+  return {(MessageKind)(InfoTag.sender_tag >> 60), {ReceiveBuffer, InfoTag.length}};
 }
 
 Base::InterfaceTy::~InterfaceTy() {

@@ -43,6 +43,8 @@ llvm_update_compile_flags(omptarget.rtl.remote)
 
 target_compile_features(omptarget.rtl.remote PRIVATE cxx_std_20)
 
+target_compile_options(omptarget.rtl.remote PRIVATE -O3)
+
 # Install plugin under the lib destination folder.
 install(TARGETS omptarget.rtl.remote LIBRARY DESTINATION "${OPENMP_INSTALL_LIBDIR}")
 
@@ -57,10 +59,6 @@ target_link_libraries(omptarget.rtl.remote PRIVATE
         "-L ${GRPC_DIR}/lib"
         "-L ${UCX_DIR}/lib"
         ${OPENMP_PTHREAD_LIB}
-        # "-ggdb"
-        # "-g"
-        # "-fno-omit-frame-pointer"
-        "-O3"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
         )
 

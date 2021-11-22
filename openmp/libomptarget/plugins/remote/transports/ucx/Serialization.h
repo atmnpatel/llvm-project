@@ -26,23 +26,6 @@
 
 namespace transport::ucx {
 
-enum MessageKind : char {
-  RegisterLib,
-  UnregisterLib,
-  IsValidBinary,
-  GetNumberOfDevices,
-  InitDevice,
-  InitRequires,
-  LoadBinary,
-  DataAlloc,
-  DataDelete,
-  DataSubmit,
-  DataRetrieve,
-  RunTargetRegion,
-  RunTargetTeamRegion,
-  Count
-};
-
 namespace custom {
 class MessageTy {
 protected:

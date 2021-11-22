@@ -22,9 +22,9 @@ protected:
   std::map<int32_t, std::unordered_map<void *, void *>> RemoteEntries{};
   std::map<int32_t, std::unique_ptr<__tgt_target_table>> DevicesToTables{};
 
-  std::string send(MessageKind Kind, std::string Message) {
+  MessageBufferTy send(MessageKind Kind, std::string Message) {
     Interface->send(Kind, Message);
-    return Interface->receive().second;
+    return Interface->receive().Buffer;
   }
 
 public:

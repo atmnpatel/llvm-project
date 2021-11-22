@@ -122,7 +122,7 @@ struct Base {
 
     bool await(SendFutureTy *Future);
 
-    std::pair<MessageKind, std::string> receive();
+    MessageTy receive();
 
     std::queue<SendFutureTy*> SendFutures;
 

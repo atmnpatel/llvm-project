@@ -85,4 +85,46 @@ const uint16_t IPStringLength = 50;
 std::string getIP(const sockaddr_storage *SocketAddress);
 std::string getPort(const sockaddr_storage *SocketAddress);
 
+enum MessageKind : char {
+  RegisterLib,
+  UnregisterLib,
+  IsValidBinary,
+  GetNumberOfDevices,
+  InitDevice,
+  InitRequires,
+  LoadBinary,
+  DataAlloc,
+  DataDelete,
+  DataSubmit,
+  DataRetrieve,
+  RunTargetRegion,
+  RunTargetTeamRegion,
+  Count
+};
+
+// Allocator adaptor that interposes construct() calls to
+// convert value initialization into default initialization.
+template <typename T, typename A=std::allocator<T>>
+class default_init_allocator : public A {
+  typedef std::allocator_traits<A> a_t;
+public:
+  template <typename U> struct rebind {
+    using other =
+        default_init_allocator<
+            U, typename a_t::template rebind_alloc<U>
+            >;
+  };
+
+  constexpr T* allocate(size_t n) {
+    return new T[n];
+  }
+};
+
+using MessageBufferTy = std::basic_string<char, std::char_traits<char>, default_init_allocator<char>>;
+
+struct MessageTy {
+  MessageKind Kind;
+  MessageBufferTy Buffer;
+};
+
 } // namespace transport::ucx

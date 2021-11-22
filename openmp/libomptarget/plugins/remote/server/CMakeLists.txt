@@ -36,6 +36,7 @@ add_llvm_executable(openmp-offloading-server
 llvm_update_compile_flags(openmp-offloading-server)
 
 target_compile_features(openmp-offloading-server PRIVATE cxx_std_20)
+target_compile_options(openmp-offloading-server PRIVATE -O3)
 
 add_dependencies(openmp-offloading-server omptarget)
 
@@ -53,9 +54,5 @@ target_link_libraries(openmp-offloading-server PRIVATE
         "-L ${GRPC_DIR}/lib"
         "-L ${UCX_DIR}/lib"
         ${OPENMP_PTHREAD_LIB}
-        # "-ggdb"
-        # "-g"
-        # "-fno-omit-frame-pointer"
-        "-O3"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../../exports"
         )
