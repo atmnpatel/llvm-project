@@ -10,8 +10,8 @@ namespace custom {
 
 MessageTy::MessageTy(size_t Size)
     : MessageSize(Size) {
-  Message.resize(Size);
-  CurBuffer = Message.data();
+  Message = new char[Size];
+  CurBuffer = Message;
 }
 
 MessageTy::MessageTy(std::string_view M)
@@ -166,8 +166,8 @@ TargetBinaryDescription::TargetBinaryDescription(__tgt_bin_desc *Description) {
     MessageSize += sizeof(NumEntries);
   }
 
-  Message.resize(MessageSize);
-  CurBuffer = Message.data();
+  Message = new char[MessageSize];
+  CurBuffer = Message;
 
   // Find number of entries
   NumEntries = 0;
@@ -244,8 +244,8 @@ TargetTable::TargetTable(__tgt_target_table *Table) {
                    sizeof(CurEntry->flags) + sizeof(CurEntry->reserved);
   }
 
-  Message.resize(MessageSize);
-  CurBuffer = Message.data();
+  Message = new char[MessageSize];
+  CurBuffer = Message;
 
   serialize(NumEntries);
   for (auto *CurEntry = Table->EntriesBegin; CurEntry != Table->EntriesEnd;
@@ -270,8 +270,8 @@ TargetTable::TargetTable(std::string_view MessageBuffer)
 
 DataAlloc::DataAlloc(int32_t DeviceId, int64_t AllocSize, void *HstPtr) {
   MessageSize = sizeof(DeviceId) + sizeof(AllocSize) + sizeof(HstPtr);
-  Message.resize(MessageSize);
-  CurBuffer = Message.data();
+  Message = new char[MessageSize];
+  CurBuffer = Message;
   serialize(DeviceId);
   serialize(AllocSize);
   serialize((uintptr_t)HstPtr);

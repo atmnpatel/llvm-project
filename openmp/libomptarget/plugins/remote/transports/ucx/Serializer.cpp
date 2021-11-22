@@ -4,8 +4,8 @@
 #include <utility>
 
 std::string CustomSerializerTy::I32(int32_t Value) {
-  transport::ucx::custom::I32 Message(Value);
-  return Message.Message;
+  transport::ucx::custom::I32 Request(Value);
+  return {Request.Message, Request.MessageSize};
 }
 
 int32_t CustomSerializerTy::I32(std::string_view Message) {
@@ -14,8 +14,8 @@ int32_t CustomSerializerTy::I32(std::string_view Message) {
 }
 
 std::string CustomSerializerTy::I64(int64_t Value) {
-  transport::ucx::custom::I64 Message(Value);
-  return Message.Message;
+  transport::ucx::custom::I64 Request(Value);
+  return {Request.Message, Request.MessageSize};
 }
 
 int64_t CustomSerializerTy::I64(std::string_view Message) {
@@ -24,8 +24,8 @@ int64_t CustomSerializerTy::I64(std::string_view Message) {
 }
 
 std::string CustomSerializerTy::TargetBinaryDescription(__tgt_bin_desc *TBD) {
-  transport::ucx::custom::TargetBinaryDescription Response(TBD);
-  return Response.Message;
+  transport::ucx::custom::TargetBinaryDescription Request(TBD);
+  return {Request.Message, Request.MessageSize};
 }
 
 __tgt_bin_desc *CustomSerializerTy::TargetBinaryDescription(
@@ -38,8 +38,8 @@ __tgt_bin_desc *CustomSerializerTy::TargetBinaryDescription(
 }
 
 std::string CustomSerializerTy::Pointer(uintptr_t Pointer) {
-  transport::ucx::custom::Pointer Message(Pointer);
-  return Message.Message;
+  transport::ucx::custom::Pointer Request(Pointer);
+  return {Request.Message, Request.MessageSize};
 }
 
 void *CustomSerializerTy::Pointer(std::string_view Message) {
@@ -49,8 +49,8 @@ void *CustomSerializerTy::Pointer(std::string_view Message) {
 
 std::string CustomSerializerTy::Binary(int32_t DeviceId,
                                        __tgt_device_image *Image) {
-  transport::ucx::custom::Binary Response(DeviceId, Image);
-  return Response.Message;
+  transport::ucx::custom::Binary Request(DeviceId, Image);
+  return {Request.Message, Request.MessageSize};
 }
 
 std::pair<int32_t, __tgt_device_image *>
@@ -60,8 +60,8 @@ CustomSerializerTy::Binary(std::string_view Message) {
 }
 
 std::string CustomSerializerTy::TargetTable(__tgt_target_table *TT) {
-  transport::ucx::custom::TargetTable Table(TT);
-  return Table.Message;
+  transport::ucx::custom::TargetTable Request(TT);
+  return {Request.Message, Request.MessageSize};
 }
 
 __tgt_target_table *CustomSerializerTy::TargetTable(
@@ -74,7 +74,7 @@ __tgt_target_table *CustomSerializerTy::TargetTable(
 std::string CustomSerializerTy::DataAlloc(int32_t DeviceId, int64_t Size,
                                           void *HstPtr) {
   transport::ucx::custom::DataAlloc Request(DeviceId, Size, HstPtr);
-  return Request.Message;
+  return {Request.Message, Request.MessageSize};
 }
 
 std::tuple<int32_t, int64_t, void *>
@@ -85,7 +85,7 @@ CustomSerializerTy::DataAlloc(std::string_view Message) {
 
 std::string CustomSerializerTy::DataDelete(int32_t DeviceId, void *TgtPtr) {
   transport::ucx::custom::DataDelete Request(DeviceId, TgtPtr);
-  return Request.Message;
+  return {Request.Message, Request.MessageSize};
 }
 
 std::tuple<int32_t, void *>
@@ -97,7 +97,7 @@ CustomSerializerTy::DataDelete(std::string_view Message) {
 std::string CustomSerializerTy::DataSubmit(int32_t DeviceId, void *TgtPtr,
                                            void *HstPtr, int64_t Size) {
   transport::ucx::custom::DataSubmit Request(DeviceId, TgtPtr, HstPtr, Size);
-  return Request.Message;
+  return {Request.Message, Request.MessageSize};
 }
 
 std::tuple<int32_t, void *, void *, int64_t>
@@ -111,7 +111,7 @@ CustomSerializerTy::DataSubmit(std::string_view Message) {
 std::string CustomSerializerTy::DataRetrieve(int32_t DeviceId, void *TgtPtr,
                                              int64_t Size) {
   transport::ucx::custom::DataRetrieve Request(DeviceId, TgtPtr, Size);
-  return Request.Message;
+  return {Request.Message, Request.MessageSize};
 }
 
 std::tuple<int32_t, void *, int64_t>
@@ -123,7 +123,7 @@ CustomSerializerTy::DataRetrieve(std::string_view Message) {
 std::string CustomSerializerTy::Data(void *DataBuffer, size_t Size,
                                      int32_t Value) {
   transport::ucx::custom::Data Request(Value, (char *)DataBuffer, Size);
-  return Request.Message;
+  return {Request.Message, Request.MessageSize};
 }
 
 std::tuple<void *, size_t, int32_t>
@@ -137,7 +137,7 @@ std::string CustomSerializerTy::TargetRegion(
     int32_t ArgNum, std::unordered_map<void *, void *> RemoteEntries) {
   transport::ucx::custom::TargetRegion Request(DeviceId, TgtEntryPtr, TgtArgs,
                                                TgtOffsets, ArgNum);
-  return Request.Message;
+  return {Request.Message, Request.MessageSize};
 }
 
 std::tuple<int32_t, void *, void **, ptrdiff_t *, int32_t>
@@ -156,7 +156,7 @@ std::string CustomSerializerTy::TargetTeamRegion(
   transport::ucx::custom::TargetTeamRegion Request(
       DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets, ArgNum, TeamNum, ThreadLimit,
       LoopTripCount);
-  return Request.Message;
+  return {Request.Message, Request.MessageSize};
 }
 
 std::tuple<int32_t, void *, void **, ptrdiff_t *, int32_t, int32_t, int32_t,

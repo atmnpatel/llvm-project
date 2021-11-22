@@ -29,7 +29,6 @@ namespace transport::ucx {
 namespace custom {
 class MessageTy {
 protected:
-  size_t MessageSize = 0;
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   void serialize(T &Value) {
     std::memcpy((void *)((CurBuffer += sizeof(Value)) - sizeof(Value)), &Value,
@@ -60,8 +59,9 @@ public:
   MessageTy(std::string_view MessageBuffer);
   virtual ~MessageTy() = default;
 
-  std::string Message;
+  char* Message;
   char *CurBuffer;
+  size_t MessageSize = 0;
 };
 
 struct I32 : public MessageTy {
