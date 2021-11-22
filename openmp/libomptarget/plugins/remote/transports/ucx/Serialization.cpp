@@ -15,10 +15,10 @@ MessageTy::MessageTy(size_t Size)
 }
 
 MessageTy::MessageTy(std::string_view M)
-    : CurBuffer(const_cast<char *>(M.data())) {
-}
+    : CurBuffer(const_cast<char*>(M.data())) {
+  }
 
-void MessageTy::serialize(uintptr_t Value) {
+  void MessageTy::serialize(uintptr_t Value) {
   std::memcpy((void *)((CurBuffer += sizeof(Value)) - sizeof(Value)), &Value,
               sizeof(Value));
 }

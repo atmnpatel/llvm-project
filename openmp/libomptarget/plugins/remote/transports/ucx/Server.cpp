@@ -26,33 +26,35 @@ ServerTy::ServerTy(SerializerType Type)
     break;
   }
 
-  for (auto I = 0; I < 1; I++) {
-    ThreadPool.emplace_back([this]() {
-      while (true) {
-        std::unique_lock Latch(QueueMtx);
+  if (NumThreads > 1) {
 
-        TaskAvailable.wait(Latch, [this]() {
-          return Running || !Tasks.empty();}
-        );
+    for (auto I = 0; I < NumThreads; I++) {
+      ThreadPool.emplace_back([this]() {
+        while (true) {
+          std::unique_lock Latch(QueueMtx);
 
-        if (!Tasks.empty()) {
-          BusyThreads++;
+          TaskAvailable.wait(Latch,
+                             [this]() { return Running || !Tasks.empty(); });
 
-          auto [Kind, Message] = Tasks.front();
-          Tasks.pop();
+          if (!Tasks.empty()) {
+            BusyThreads++;
 
-          Latch.unlock();
+            auto [Kind, Message] = Tasks.front();
+            Tasks.pop();
 
-          process(Kind,Message);
+            Latch.unlock();
 
-          Latch.lock();
-          --BusyThreads;
-          TaskFinished.notify_one();
-        } else if (!Running) {
-          break;
+            process(Kind, Message);
+
+            Latch.lock();
+            --BusyThreads;
+            TaskFinished.notify_one();
+          } else if (!Running) {
+            break;
+          }
         }
-      }
-    });
+      });
+    }
   }
 }
 
@@ -100,10 +102,14 @@ void ServerTy::listenForConnections(const ConnectionConfigTy &Config) {
   ListenerTy Listener((ucp_worker_h)ConnectionWorker, &Ctx, Config);
 
   Listener.query(); // For Info only
-
   while (Running) {
     while (Ctx.ConnRequests.empty() && Running) {
-      ucp_worker_progress((ucp_worker_h)ConnectionWorker);
+      if (ucp_worker_progress((ucp_worker_h)ConnectionWorker))
+        continue;
+      auto Status = ucp_worker_wait(ConnectionWorker);
+      if (Status != UCS_OK) {
+        ERR("Failed to recv message {0}", ucs_status_string(Status))
+      }
     }
 
     for (auto *ConnRequest : Ctx.ConnRequests) {
@@ -116,14 +122,21 @@ void ServerTy::listenForConnections(const ConnectionConfigTy &Config) {
 }
 
 void ServerTy::run() {
-  std::unique_lock Latch(QueueMtx);
-  Latch.unlock();
-  do {
-    auto [Type, Message] = Interface->receive();
-    Latch.lock();
-    Tasks.emplace(Type, std::move(Message));
+  if (NumThreads > 1) {
+    std::unique_lock Latch(QueueMtx);
     Latch.unlock();
-  } while (Running);
+    do {
+      auto [Type, Message] = Interface->receive();
+      Latch.lock();
+      Tasks.emplace(Type, std::move(Message));
+      Latch.unlock();
+    } while (Running);
+  } else {
+    do {
+      auto [Type, Message] = Interface->receive();
+      process(Type, Message);
+    } while (Running);
+  }
 }
 
 void ServerTy::process(MessageKind Type, std::string_view Message) {

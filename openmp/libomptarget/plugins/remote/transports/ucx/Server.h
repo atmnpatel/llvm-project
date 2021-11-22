@@ -40,6 +40,7 @@ protected:
 
   SerializerTy *Serializer;
 
+  int NumThreads = 1;
   std::mutex QueueMtx;
   int BusyThreads = 0;
   std::condition_variable TaskAvailable, TaskFinished;
