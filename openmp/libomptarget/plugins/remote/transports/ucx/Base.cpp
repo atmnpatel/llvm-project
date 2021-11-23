@@ -30,55 +30,6 @@ WorkerTy::~WorkerTy() {
   ucp_worker_destroy(Worker);
 }
 
-static ucs_status_t poll_wait(ucp_worker_h ucp_worker) {
-  int err            = 0;
-  ucs_status_t ret   = UCS_ERR_NO_MESSAGE;
-  int epoll_fd_local = 0;
-  int epoll_fd       = 0;
-  ucs_status_t status;
-  struct epoll_event ev;
-  ev.data.u64        = 0;
-
-  status = ucp_worker_get_efd(ucp_worker, &epoll_fd);
-  if (UCS_OK != status) {
-    printf("Could not get efd");
-    ERR("Could not get efd")
-    return ret;
-  }
-
-  /* It is recommended to copy original fd */
-  epoll_fd_local = epoll_create(1);
-
-  ev.data.fd = epoll_fd;
-  ev.events = EPOLLIN;
-  err = epoll_ctl(epoll_fd_local, EPOLL_CTL_ADD, epoll_fd, &ev);
-  if (err < 0) {
-    printf("Could not add socket to epoll");
-    close(epoll_fd_local);
-    ERR("Could not add original socket to the new epoll")
-  }
-
-  /* Need to prepare ucp_worker before epoll_wait */
-  status = ucp_worker_arm(ucp_worker);
-  if (status == UCS_ERR_BUSY) { /* some events are arrived already */
-    ret = UCS_OK;
-    close(epoll_fd_local);
-  }
-  if (status != UCS_OK) {
-    printf("ucp_worker_arm");
-    close(epoll_fd_local);
-    ERR("ucp_worker_arm\n");
-  }
-
-  do {
-    err = epoll_wait(epoll_fd_local, &ev, 1, -1);
-  } while ((err == -1) && (errno == EINTR));
-
-  ret = UCS_OK;
-
-  return ret;
-}
-
 EndpointTy::EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest)
     : EP(nullptr), Connected(true) {
 
