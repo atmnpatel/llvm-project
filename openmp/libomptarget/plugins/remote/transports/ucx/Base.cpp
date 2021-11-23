@@ -126,7 +126,7 @@ void Base::InterfaceTy::send(MessageKind Type, std::string Message) {
   auto SlabTag = LastSendTag++;
   SlabTag = ((uint64_t)Type << 60) | SlabTag;
 
-  SendFutureTy *Fut = new SendFutureTy(Message);
+  SendFutureTy *Fut = new SendFutureTy(std::move(Message));
   Fut->Context->Complete = 0;
   ucp_request_param_t Param = {.op_attr_mask = UCP_OP_ATTR_FIELD_CALLBACK |
                                                UCP_OP_ATTR_FIELD_USER_DATA,

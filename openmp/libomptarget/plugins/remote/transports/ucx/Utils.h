@@ -44,7 +44,7 @@ struct SendFutureTy {
   RequestStatus *Request;
   RequestStatus *Context;
   std::string Message;
-  SendFutureTy(std::string Message) : Request(nullptr), Context(new RequestStatus()), Message(Message) {}
+  SendFutureTy(std::string &&Message) : Request(nullptr), Context(new RequestStatus()), Message(std::move(Message)) {}
 
   ~SendFutureTy() {
     delete Context;

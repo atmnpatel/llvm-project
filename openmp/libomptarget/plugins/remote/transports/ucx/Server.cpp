@@ -296,13 +296,15 @@ void ServerTy::dataSubmit(std::string_view Message) {
 void ServerTy::dataRetrieve(std::string_view Message) {
   auto [DeviceId, TgtPtr, DataSize] = Serializer->DataRetrieve(Message);
 
-  auto HstPtr = std::make_unique<char[]>(DataSize);
+  auto *HstPtr = new char[DataSize];
 
   int32_t Value = PM->Devices[DeviceId]->RTL->data_retrieve(
-      mapHostRTLDeviceId(DeviceId), (void *)HstPtr.get(),
+      mapHostRTLDeviceId(DeviceId), (void *)HstPtr,
       (void *)TgtPtr, DataSize);
 
-  Interface->send(DataRetrieve, Serializer->Data(HstPtr.get(), DataSize, Value));
+  Interface->send(DataRetrieve, Serializer->Data(HstPtr, DataSize, Value));
+
+  delete[] HstPtr;
 }
 
 void ServerTy::runTargetRegion(std::string_view Message) {

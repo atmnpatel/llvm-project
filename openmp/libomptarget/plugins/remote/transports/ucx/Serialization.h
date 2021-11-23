@@ -31,8 +31,8 @@ class MessageTy {
 protected:
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   void serialize(T &Value) {
-    std::memcpy((void *)((CurBuffer += sizeof(Value)) - sizeof(Value)), &Value,
-                sizeof(Value));
+    *(T *)CurBuffer = Value;
+    CurBuffer += sizeof(Value);
   }
 
   void serialize(uintptr_t Value);

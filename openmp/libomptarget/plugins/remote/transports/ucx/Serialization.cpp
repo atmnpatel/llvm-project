@@ -18,9 +18,9 @@ MessageTy::MessageTy(std::string_view M)
     : CurBuffer(const_cast<char*>(M.data())) {
   }
 
-  void MessageTy::serialize(uintptr_t Value) {
-  std::memcpy((void *)((CurBuffer += sizeof(Value)) - sizeof(Value)), &Value,
-              sizeof(Value));
+void MessageTy::serialize(uintptr_t Value) {
+  *(uintptr_t *)CurBuffer = Value;
+  CurBuffer += sizeof(Value);
 }
 
 void MessageTy::serialize(void *BufferStart, void *BufferEnd) {
