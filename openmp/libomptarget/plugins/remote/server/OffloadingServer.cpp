@@ -71,7 +71,7 @@ int main() {
 
     auto *ConnectionInfoStr = std::getenv("LIBOMPTARGET_RPC_ADDRESS");
     auto ConnectionInfo =
-        ConnectionInfoStr ? std::string(ConnectionInfoStr) : ":13337";
+        ConnectionInfoStr ? std::string(ConnectionInfoStr) : ":50051";
     auto Config = transport::ucx::ConnectionConfigTy(ConnectionInfo);
 
     Server->listenForConnections(Config);
