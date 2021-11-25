@@ -36,7 +36,7 @@ ManagerConfigTy::ManagerConfigTy() {
       AddressString.erase(0, Pos + Delimiter.length());
     } while (!AddressString.empty());
   } else
-    ConnectionConfigs.emplace_back("0.0.0.0:13337");
+    ConnectionConfigs.emplace_back("0.0.0.0:50051");
 
   if (const char *Env = std::getenv("LIBOMPTARGET_RPC_BLOCK_SIZE"))
     BufferSize = std::stoi(Env);
