@@ -17,14 +17,13 @@ class ClientTy : public Base, public BaseClientTy {
 protected:
   SerializerTy *Serializer;
 
-  uint64_t Tag = 0;
-
   std::map<int32_t, std::unordered_map<void *, void *>> RemoteEntries{};
   std::map<int32_t, std::unique_ptr<__tgt_target_table>> DevicesToTables{};
 
   MessageBufferTy send(MessageKind Kind, std::string Message) {
-    Interface->send(Kind, Message);
-    return Interface->receive().Buffer;
+    auto Tag = Interface->GetTag(Kind);
+    Interface->send(Tag, Message);
+    return Interface->receive(Tag).Buffer;
   }
 
 public:

@@ -40,12 +40,13 @@ protected:
 
   SerializerTy *Serializer;
 
-  int NumThreads = 1;
+  int NumThreads = 8;
   std::mutex QueueMtx;
   int BusyThreads = 0;
   std::condition_variable TaskAvailable, TaskFinished;
   std::vector<std::thread> ThreadPool;
-  std::queue<std::pair<MessageKind, std::string>> Tasks;
+
+  std::queue<std::tuple<uint64_t, MessageKind, std::string>> Tasks;
 
 public:
   ServerTy(SerializerType Type);
@@ -54,21 +55,21 @@ public:
   void listenForConnections(const ConnectionConfigTy &Config);
 
   void run();
-  void getNumberOfDevices();
-  void registerLib(std::string_view Message);
-  void isValidBinary(std::string_view Message);
-  void initRequires(std::string_view Message);
-  void initDevice(std::string_view Message);
-  void loadBinary(std::string_view Message);
-  void dataAlloc(std::string_view Message);
-  void dataSubmit(std::string_view Message);
-  void dataRetrieve(std::string_view Message);
-  void runTargetRegion(std::string_view Message);
-  void runTargetTeamRegion(std::string_view Message);
-  void dataDelete(std::string_view Message);
-  void unregisterLib(std::string_view Message);
+  void getNumberOfDevices(uint64_t Tag);
+  void registerLib(uint64_t Tag, std::string_view Message);
+  void isValidBinary(uint64_t Tag, std::string_view Message);
+  void initRequires(uint64_t Tag, std::string_view Message);
+  void initDevice(uint64_t Tag, std::string_view Message);
+  void loadBinary(uint64_t Tag, std::string_view Message);
+  void dataAlloc(uint64_t Tag, std::string_view Message);
+  void dataSubmit(uint64_t Tag, std::string_view Message);
+  void dataRetrieve(uint64_t Tag, std::string_view Message);
+  void runTargetRegion(uint64_t Tag, std::string_view Message);
+  void runTargetTeamRegion(uint64_t Tag, std::string_view Message);
+  void dataDelete(uint64_t Tag, std::string_view Message);
+  void unregisterLib(uint64_t Tag, std::string_view Message);
 
-  void process(MessageKind Kind, std::string_view Message);
+  void process(uint64_t Tag, MessageKind Kind, std::string_view Message);
 };
 
 class ServerTy::ListenerTy {

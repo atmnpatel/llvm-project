@@ -55,7 +55,7 @@ public:
 
   /* Helper Functions */
   operator ucp_ep_h() { return EP; }
-  bool Connected;
+  bool Connected = true;
 };
 
 struct Base {
@@ -78,7 +78,8 @@ struct Base {
 
     std::vector<char> Buffer;
 
-    std::mutex SendFuturesMtx;
+    std::mutex SendFuturesMtx, Mtx;
+    std::atomic<bool> Progressed = false;
 
     InterfaceTy(ContextTy &Context, const ConnectionConfigTy &Config);
     InterfaceTy(ContextTy &Context, ucp_conn_request_h ConnRequest);
@@ -117,16 +118,28 @@ struct Base {
           Ctx->Complete = 1;
         }
 
-    void send(MessageKind Type, std::string Message);
-//    void asyncSend(MessageKind Type, std::string Message);
+    void send(uint64_t Tag, std::string Message);
 
     bool await(SendFutureTy *Future);
 
-    MessageTy receive();
+    MessageTy receive(uint64_t Tag);
 
     std::queue<SendFutureTy*> SendFutures;
 
     void wait(RequestStatus *Request);
+
+    uint64_t GetTag(MessageKind Type) {
+      auto SlabTag = LastSendTag++;
+      return ((uint64_t)Type << 60) | SlabTag;
+    }
+
+    uint64_t GetTag() {
+      return LastSendTag++;
+    }
+
+    uint64_t EncodeTag(uint64_t SlabTag, MessageKind Type) {
+      return ((uint64_t)Type << 60) | SlabTag;
+    }
   };
 };
 } // namespace transport::ucx

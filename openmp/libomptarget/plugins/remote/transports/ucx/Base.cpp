@@ -20,7 +20,7 @@ ContextTy::~ContextTy() { ucp_cleanup(Context); }
 WorkerTy::WorkerTy(ucp_context_h *Context) : Worker(nullptr) {
   ucp_worker_params_t Params = {.field_mask =
                                     UCP_WORKER_PARAM_FIELD_THREAD_MODE,
-                                .thread_mode = UCS_THREAD_MODE_SERIALIZED};
+                                .thread_mode = UCS_THREAD_MODE_MULTI};
 
   if (auto Status = ucp_worker_create(*Context, &Params, &Worker))
     ERR("failed ot ucp_worker_create ({0})", ucs_status_string(Status))
@@ -30,9 +30,7 @@ WorkerTy::~WorkerTy() {
   ucp_worker_destroy(Worker);
 }
 
-EndpointTy::EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest)
-    : EP(nullptr), Connected(true) {
-
+EndpointTy::EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest) {
   ucp_ep_params_t Params = {
       .field_mask =
           UCP_EP_PARAM_FIELD_ERR_HANDLER | UCP_EP_PARAM_FIELD_CONN_REQUEST,
@@ -44,8 +42,7 @@ EndpointTy::EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest)
         ucs_status_string(Status))
 }
 
-EndpointTy::EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config)
-    : EP(nullptr), Connected(true) {
+EndpointTy::EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config) {
   sockaddr_in ConnectAddress = {
       .sin_family = AF_INET,
       .sin_port = htons(Config.Port),
@@ -73,10 +70,7 @@ Base::InterfaceTy::InterfaceTy(ContextTy &Context,
                                ucp_conn_request_h ConnRequest)
     : Worker((ucp_context_h *)Context), EP(Worker, ConnRequest) {}
 
-void Base::InterfaceTy::send(MessageKind Type, std::string Message) {
-  auto SlabTag = LastSendTag++;
-  SlabTag = ((uint64_t)Type << 60) | SlabTag;
-
+void Base::InterfaceTy::send(uint64_t SlabTag, std::string Message) {
   SendFutureTy *Fut = new SendFutureTy(std::move(Message));
   Fut->Context->Complete = 0;
   ucp_request_param_t Param = {.op_attr_mask = UCP_OP_ATTR_FIELD_CALLBACK |
@@ -84,6 +78,7 @@ void Base::InterfaceTy::send(MessageKind Type, std::string Message) {
       .cb = {.send = sendCallback},
       .user_data = Fut->Context};
   Fut->Request = (RequestStatus *)ucp_tag_send_nbx(EP, Fut->Message.data(), Fut->Message.length(), SlabTag, &Param);
+  printf("Sending %lx\n", SlabTag);
 
   if (Fut->Request == nullptr)
     return;
@@ -91,7 +86,7 @@ void Base::InterfaceTy::send(MessageKind Type, std::string Message) {
   if (UCS_PTR_IS_ERR(Fut->Request))
     ERR("failed to send message {0}\n", ucs_status_string(UCS_PTR_STATUS(Req)))
 
-  std::lock_guard Guard(SendFuturesMtx);
+  std::lock_guard SendGuard(SendFuturesMtx);
   SendFutures.emplace(Fut);
 }
 
@@ -122,8 +117,9 @@ void Base::InterfaceTy::wait(RequestStatus *Request) {
   if (UCS_PTR_IS_ERR(Request)) {
     Status = UCS_PTR_STATUS(Request);
   } else if (UCS_PTR_IS_PTR(Request)) {
-    while (!Request->Complete)
+    while (!Request->Complete) {
       ucp_worker_progress(Worker);
+    }
 
     Request->Complete = 0;
     Status = ucp_request_check_status(Request);
@@ -134,34 +130,46 @@ void Base::InterfaceTy::wait(RequestStatus *Request) {
   }
 }
 
-MessageTy Base::InterfaceTy::receive() {
-  auto SlabTag = LastRecvTag++;
-
+MessageTy Base::InterfaceTy::receive(uint64_t SlabTag) {
   ucp_tag_recv_info_t InfoTag;
   ucs_status_t Status;
   ucp_tag_message_h MsgTag;
+  // printf("Checking for %lx\n", ((uint64_t) TAG_MASK) & SlabTag);
 
   while (Running) {
     std::unique_lock Latch(SendFuturesMtx);
+    // if (SendFutures.size() > 1)
+    //   printf("Size: %ld\n", SendFutures.size());
     if (!SendFutures.empty() && await(SendFutures.front())) {
       delete SendFutures.front();
       SendFutures.pop();
     }
     Latch.unlock();
     MsgTag = ucp_tag_probe_nb(Worker, SlabTag, TAG_MASK, 1, &InfoTag);
-    if (MsgTag != nullptr)
+    if (MsgTag != nullptr) {
+      // printf("Received %lx\n", InfoTag.sender_tag);
       break;
-    if (ucp_worker_progress(Worker))
-      continue;
+    }
+    
+    Progressed = false;
 
-    Status = ucp_worker_wait(Worker);
+    {
+      std::lock_guard Guard(Mtx);
+      if (Progressed)
+        continue;
+      Progressed = ucp_worker_progress(Worker);
+      if (Progressed)
+        continue;
+      Status = ucp_worker_wait(Worker);
+    }
+
     if (Status != UCS_OK) {
       ERR("Failed to recv message {0}", ucs_status_string(Status))
     }
   }
 
   if (!Running)
-    return {};
+    return {(MessageKind) Count, ""};
 
   char * ReceiveBuffer = new char[InfoTag.length];
   auto *Request = (RequestStatus *)ucp_tag_msg_recv_nb(
