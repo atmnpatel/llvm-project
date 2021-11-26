@@ -147,7 +147,6 @@ void ServerTy::run() {
 }
 
 void ServerTy::process(uint64_t Tag, MessageKind Type, std::string_view Message) {
-  printf("Processing %d - %lx\n", Type, Tag);
    switch (Type) {
    case GetNumberOfDevices: {
      getNumberOfDevices(Tag);
@@ -320,11 +319,10 @@ void ServerTy::runTargetRegion(uint64_t Tag, std::string_view Message) {
 
   auto Ret = 0;
 
-  // Ret = PM->Devices[DeviceId]->RTL->run_region(
-  //     mapHostRTLDeviceId(DeviceId), (void *)TgtEntryPtr,
-  //     (void **)TgtArgs, (ptrdiff_t *)TgtOffsets,
-  //     ArgNum);
-  // std::this_thread::sleep_for(std::chrono::seconds(1));
+  Ret = PM->Devices[DeviceId]->RTL->run_region(
+      mapHostRTLDeviceId(DeviceId), (void *)TgtEntryPtr,
+      (void **)TgtArgs, (ptrdiff_t *)TgtOffsets,
+      ArgNum);
 
   Interface->send(Interface->EncodeTag(Tag, RunTargetRegion), Serializer->I32(Ret));
 }
@@ -333,11 +331,10 @@ void ServerTy::runTargetTeamRegion(uint64_t Tag, std::string_view Message) {
   auto [DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets, ArgNum, TeamNum, ThreadLimit, LoopTripCount] = Serializer->TargetTeamRegion(Message);
   auto Ret = 0;
 
-  // Ret = PM->Devices[DeviceId]->RTL->run_team_region(
-  //     mapHostRTLDeviceId(DeviceId), (void *)TgtEntryPtr,
-  //     (void **)TgtArgs, (ptrdiff_t *)TgtOffsets, ArgNum,
-  //     TeamNum, ThreadLimit, LoopTripCount);
-  // std::this_thread::sleep_for(std::chrono::seconds(1));
+  Ret = PM->Devices[DeviceId]->RTL->run_team_region(
+      mapHostRTLDeviceId(DeviceId), (void *)TgtEntryPtr,
+      (void **)TgtArgs, (ptrdiff_t *)TgtOffsets, ArgNum,
+      TeamNum, ThreadLimit, LoopTripCount);
 
   Interface->send(Interface->EncodeTag(Tag, RunTargetTeamRegion), Serializer->I32(Ret));
 }

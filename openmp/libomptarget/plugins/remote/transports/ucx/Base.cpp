@@ -78,7 +78,6 @@ void Base::InterfaceTy::send(uint64_t SlabTag, std::string Message) {
       .cb = {.send = sendCallback},
       .user_data = Fut->Context};
   Fut->Request = (RequestStatus *)ucp_tag_send_nbx(EP, Fut->Message.data(), Fut->Message.length(), SlabTag, &Param);
-  printf("Sending %lx\n", SlabTag);
 
   if (Fut->Request == nullptr)
     return;
@@ -134,12 +133,9 @@ MessageTy Base::InterfaceTy::receive(uint64_t SlabTag) {
   ucp_tag_recv_info_t InfoTag;
   ucs_status_t Status;
   ucp_tag_message_h MsgTag;
-  // printf("Checking for %lx\n", ((uint64_t) TAG_MASK) & SlabTag);
 
   while (Running) {
     std::unique_lock Latch(SendFuturesMtx);
-    // if (SendFutures.size() > 1)
-    //   printf("Size: %ld\n", SendFutures.size());
     if (!SendFutures.empty() && await(SendFutures.front())) {
       delete SendFutures.front();
       SendFutures.pop();
@@ -147,7 +143,6 @@ MessageTy Base::InterfaceTy::receive(uint64_t SlabTag) {
     Latch.unlock();
     MsgTag = ucp_tag_probe_nb(Worker, SlabTag, TAG_MASK, 1, &InfoTag);
     if (MsgTag != nullptr) {
-      // printf("Received %lx\n", InfoTag.sender_tag);
       break;
     }
     
