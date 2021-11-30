@@ -18,21 +18,21 @@
 #include "Utils.h"
 #include "device.h"
 #include "omptarget.h"
-#include "openmp.grpc.pb.h"
-#include "openmp.pb.h"
 #include "rtl.h"
+#include "messages.pb.h"
+#include "grpc.grpc.pb.h"
 
 using grpc::ServerContext;
 using grpc::ServerReader;
 using grpc::ServerWriter;
 using grpc::Status;
 
-using namespace openmp::libomptarget::remote;
-using namespace RemoteOffloading;
-
+using transport::grpc::RemoteOffload;
 using namespace google;
 
 extern PluginManager *PM;
+
+namespace transport::grpc {
 
 class RemoteOffloadImpl final : public RemoteOffload::Service {
 private:
@@ -40,8 +40,7 @@ private:
 
   std::unordered_map<const void *, __tgt_device_image *>
       HostToRemoteDeviceImage;
-  std::unordered_map<const void *, std::unique_ptr<__tgt_bin_desc>>
-      Descriptions;
+  std::unordered_map<const void *, __tgt_bin_desc *> Descriptions;
   __tgt_target_table *Table = nullptr;
 
   int DebugLevel;
@@ -52,12 +51,11 @@ private:
 public:
   RemoteOffloadImpl(uint64_t MaxSize, uint64_t BlockSize)
       : MaxSize(MaxSize), BlockSize(BlockSize) {
+    PM->RTLs.BlocklistedRTLs = {"libomptarget.rtl.ucx.so",
+                                "libomptarget.rtl.rpc.so"};
     DebugLevel = getDebugLevel();
     Arena = std::make_unique<protobuf::Arena>();
   }
-
-  Status Shutdown(ServerContext *Context, const Null *Request,
-                  I32 *Reply) override;
 
   Status RegisterLib(ServerContext *Context,
                      const TargetBinaryDescription *Description,
@@ -65,8 +63,7 @@ public:
   Status UnregisterLib(ServerContext *Context, const Pointer *Request,
                        I32 *Reply) override;
 
-  Status IsValidBinary(ServerContext *Context,
-                       const TargetDeviceImagePtr *Image,
+  Status IsValidBinary(ServerContext *Context, const Pointer *Image,
                        I32 *IsValid) override;
   Status GetNumberOfDevices(ServerContext *Context, const Null *Null,
                             I32 *NumberOfDevices) override;
@@ -74,23 +71,18 @@ public:
   Status InitDevice(ServerContext *Context, const I32 *DeviceNum,
                     I32 *Reply) override;
   Status InitRequires(ServerContext *Context, const I64 *RequiresFlag,
-                      I32 *Reply) override;
+                      I64 *Reply) override;
 
   Status LoadBinary(ServerContext *Context, const Binary *Binary,
                     TargetTable *Reply) override;
-  Status IsDataExchangeable(ServerContext *Context, const DevicePair *Request,
-                            I32 *Reply) override;
 
   Status DataAlloc(ServerContext *Context, const AllocData *Request,
                    Pointer *Reply) override;
 
-  Status DataSubmit(ServerContext *Context, ServerReader<SubmitData> *Reader,
+  Status DataSubmit(ServerContext *Context, ServerReader<SSubmitData> *Reader,
                     I32 *Reply) override;
   Status DataRetrieve(ServerContext *Context, const RetrieveData *Request,
-                      ServerWriter<Data> *Writer) override;
-
-  Status DataExchange(ServerContext *Context, const ExchangeData *Request,
-                      I32 *Reply) override;
+                      ServerWriter<SData> *Writer) override;
 
   Status DataDelete(ServerContext *Context, const DeleteData *Request,
                     I32 *Reply) override;
@@ -101,6 +93,11 @@ public:
   Status RunTargetTeamRegion(ServerContext *Context,
                              const TargetTeamRegion *Request,
                              I32 *Reply) override;
+
+  Status Shutdown(ServerContext *Context, const Null *Request,
+                  Null *Reply) override;
 };
+
+} // namespace transport::grpc
 
 #endif

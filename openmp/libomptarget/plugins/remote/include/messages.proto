@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package transport.messages;
+option cc_enable_arenas = true;
+option optimize_for = LITE_RUNTIME;
+
+message Null {}
+
+message Pointer { uint64 number = 1; }
+
+message Binary {
+  uint64 image_ptr = 1;
+  int32 device_id = 2;
+}
+
+message DeviceOffloadEntry {
+  string name = 1;
+  uint64 addr = 2;
+  int32 flags = 3;
+  int32 reserved = 4;
+  uint64 size = 5;
+}
+
+message TargetTable {
+  repeated DeviceOffloadEntry entries = 1;
+  repeated uint64 entry_ptrs = 2;
+}
+
+message TargetDeviceImage {
+  bytes binary = 1;
+  repeated TargetOffloadEntry entries = 2;
+  uint64 img_ptr = 3;
+}
+
+message ImagePtrs {
+  uint64 img_ptr = 1;
+  repeated uint64 entry_ptrs = 2;
+}
+
+message AllocData {
+  uint64 size = 1;
+  uint64 hst_ptr = 2;
+  int32 device_id = 3;
+}
+
+message SSubmitData {
+  bytes data = 1;
+  uint64 tgt_ptr = 3;
+  uint64 start = 5;
+  uint64 size = 6;
+  int32 device_id = 7;
+}
+
+message SData {
+  bytes data = 1;
+  uint64 start = 2;
+  uint64 size = 3;
+  int32 ret = 4;
+}
+
+message DeleteData {
+  uint64 tgt_ptr = 1;
+  int32 device_id = 2;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+message I32 { int32 number = 1; }
+
+message I64 { int64 number = 1; }
+
+message TargetOffloadEntry {
+  bytes data = 1;
+  string name = 2;
+  int32 flags = 3;
+  int32 reserved = 4;
+}
+
+message TargetBinaryDescription {
+  repeated TargetOffloadEntry entries = 1;
+  repeated TargetDeviceImage images = 2;
+  uint64 bin_ptr = 3;
+}
+
+message SubmitData {
+  bytes data = 1;
+  uint64 tgt_ptr = 2;
+  uint64 size = 3;
+  int32 device_id = 4;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+message RetrieveData {
+  uint64 tgt_ptr = 1;
+  int64 size = 2;
+  int32 device_id = 3;
+}
+
+message Data {
+  bytes data = 1;
+  int32 ret = 2;
+}
+
+message TargetRegion {
+  repeated uint64 tgt_args = 1;
+  repeated uint64 tgt_offsets = 2;
+  uint64 tgt_entry_ptr = 3;
+  int32 device_id = 4;
+}
+
+message TargetTeamRegion {
+  repeated uint64 tgt_args = 1;
+  repeated uint64 tgt_offsets = 2;
+  uint64 tgt_entry_ptr = 3;
+  uint64 loop_tripcount = 4;
+  int32 device_id = 5;
+  int32 team_num = 6;
+  int32 thread_limit = 7;
+}
+
