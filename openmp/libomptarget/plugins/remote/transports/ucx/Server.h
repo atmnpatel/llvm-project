@@ -48,6 +48,16 @@ protected:
 
   std::queue<std::tuple<uint64_t, MessageKind, std::string>> Tasks;
 
+  struct Allocation {
+    int Device;
+    void *TgtPtr;
+    long Size;
+    Allocation(int Device, void *TgtPtr, long Size) : Device(Device), TgtPtr(TgtPtr), Size(Size) {}
+  };
+
+  std::vector<Allocation> Allocations;
+  std::mutex AllocationsMtx;
+
 public:
   ServerTy(SerializerType Type);
   ~ServerTy();

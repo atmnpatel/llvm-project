@@ -18,7 +18,6 @@ protected:
   SerializerTy *Serializer;
 
   std::map<int32_t, std::unordered_map<void *, void *>> RemoteEntries{};
-  std::map<int32_t, std::unique_ptr<__tgt_target_table>> DevicesToTables{};
 
   MessageBufferTy send(MessageKind Kind, std::string Message) {
     auto Tag = Interface->GetTag(Kind);

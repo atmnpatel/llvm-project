@@ -4,10 +4,18 @@
 #include "omptarget.h"
 #include <vector>
 #include <memory>
+#include <map>
+#include <set>
+#include <condition_variable>
 
 class BaseClientTy {
 protected:
   uint32_t DebugLevel = 0;
+
+  std::set<void*> SentData, SendingData;
+  std::mutex SentDataMtx, SendingDataMtx, InProgressMtx;
+  std::map<void *, std::unique_ptr<std::mutex>> InProgress;
+  std::map<void *, std::unique_ptr<std::condition_variable>> InProgressCVs;
 
 public:
   BaseClientTy() : DebugLevel(getDebugLevel()) {}

@@ -109,13 +109,62 @@ int32_t ClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                              int64_t Size) {
   CLIENT_DBG("Submitting %ld bytes from %p to %p on device %d", Size, HstPtr,
              TgtPtr, DeviceId)
-  auto Response = send(MessageKind::DataSubmit,
-                       Serializer->DataSubmit(DeviceId, TgtPtr, HstPtr, Size));
-  auto Value = Serializer->I32(Response);
-  if (Value)
-    CLIENT_DBG("Submitted %ld bytes from %p to %p on device %d", Size, HstPtr,
-               TgtPtr, DeviceId)
-  return Value;
+
+  { // If Sent
+    std::lock_guard Guard(SentDataMtx);
+    if (SentData.contains(HstPtr)) {
+      return 0;
+    }
+  }
+
+  std::mutex *Mtx;
+  std::condition_variable *CV;
+  {
+    std::lock_guard Guard(InProgressMtx);
+    if (!InProgress.contains(HstPtr))
+      InProgress[HstPtr] = std::make_unique<std::mutex>();
+    if (!InProgressCVs.contains(HstPtr))
+      InProgressCVs[HstPtr] = std::make_unique<std::condition_variable>();
+
+    Mtx = InProgress[HstPtr].get();
+    CV = InProgressCVs[HstPtr].get();
+  }
+
+  bool IsInProgress = false;
+  { // Check if its being sent
+    std::lock_guard Guard(SendingDataMtx);
+    IsInProgress = SendingData.contains(HstPtr);
+  }
+
+  if (IsInProgress) {
+    std::unique_lock Latch(*Mtx);
+    CV->wait(Latch, [&] () {
+      std::lock_guard Guard(SentDataMtx);
+      return SentData.contains(HstPtr);
+    });
+  } else {
+    MessageBufferTy Response;
+    {
+      std::lock_guard Guard(*Mtx);
+      { // Check if its being sent
+        std::lock_guard InnerGuard(SendingDataMtx);
+        SendingData.insert(HstPtr);
+      }
+      Response =
+          send(MessageKind::DataSubmit,
+               Serializer->DataSubmit(DeviceId, TgtPtr, HstPtr, Size));
+    }
+    CV->notify_all();
+    {
+      std::lock_guard Guard(SentDataMtx);
+      SentData.insert(HstPtr);
+    }
+    auto Value = Serializer->I32(Response);
+    if (!Value)
+      CLIENT_DBG("Submitted %ld bytes from %p to %p on device %d", Size, HstPtr,
+                 TgtPtr, DeviceId)
+    return Value;
+  }
 }
 
 int32_t ClientTy::dataRetrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,

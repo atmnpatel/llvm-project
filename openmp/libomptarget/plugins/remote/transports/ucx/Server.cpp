@@ -287,15 +287,35 @@ void ServerTy::dataAlloc(uint64_t Tag, std::string_view Message) {
       mapHostRTLDeviceId(DeviceId), AllocSize,
       (void *)HstPtr, TARGET_ALLOC_DEFAULT);
 
+  {
+    std::lock_guard Guard(AllocationsMtx);
+    Allocations.emplace_back(DeviceId, (void *) TgtPtr, AllocSize);
+  }
+
   Interface->send(Interface->EncodeTag(Tag, DataAlloc), Serializer->Pointer(TgtPtr));
 }
 
 void ServerTy::dataSubmit(uint64_t Tag, std::string_view Message) {
   auto [DeviceId, TgtPtr, HstPtr, DataSize] = Serializer->DataSubmit(Message);
+  int DSize = DataSize;
+  int DID = DeviceId;
 
-  auto Ret = PM->Devices[DeviceId]->RTL->data_submit(
-      mapHostRTLDeviceId(DeviceId), TgtPtr, HstPtr,
-      DataSize);
+  int32_t Ret = 0;
+  for (auto I = 0; I < Devices; I++) {
+    std::lock_guard Guard(AllocationsMtx);
+    auto It = std::find_if(Allocations.begin(), Allocations.end(), [&,DSize, DID] (Allocation &Alloc) {
+      return Alloc.Size == DSize && Alloc.Device == DID;
+    });
+    if (It != Allocations.end()) {
+      Ret &= PM->Devices[I]->RTL->data_submit(
+          mapHostRTLDeviceId(I), It->TgtPtr, HstPtr,
+          DataSize);
+      if (!Ret) {
+        printf("Could not one-shot submit data to device %d", I);
+        llvm::report_fatal_error("error");
+      }
+    }
+  }
 
   Interface->send(Interface->EncodeTag(Tag, DataSubmit), Serializer->I32(Ret));
 }
