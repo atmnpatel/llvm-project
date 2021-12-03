@@ -289,6 +289,7 @@ void ServerTy::dataAlloc(uint64_t Tag, std::string_view Message) {
 
   {
     std::lock_guard Guard(AllocationsMtx);
+    CLIENT_DBG("Allocated %d bytes on %p for device %d\n", AllocSize, (void *) TgtPtr, DeviceId);
     Allocations.emplace_back(DeviceId, (void *) TgtPtr, AllocSize);
   }
 
@@ -298,23 +299,43 @@ void ServerTy::dataAlloc(uint64_t Tag, std::string_view Message) {
 void ServerTy::dataSubmit(uint64_t Tag, std::string_view Message) {
   auto [DeviceId, TgtPtr, HstPtr, DataSize] = Serializer->DataSubmit(Message);
   int DSize = DataSize;
-  int DID = DeviceId;
+
+  CLIENT_DBG("Submitting %d bytes from %p to %p on device %d\n", DataSize, HstPtr, TgtPtr, DeviceId);
 
   int32_t Ret = 0;
+  if (DataSize < 5189760)
+      Ret &= PM->Devices[DeviceId]->RTL->data_submit(
+          mapHostRTLDeviceId(DeviceId), TgtPtr, HstPtr,
+          DataSize);
+  else {
   for (auto I = 0; I < Devices; I++) {
+    CLIENT_DBG("Checking Device %d\n", I);
     std::lock_guard Guard(AllocationsMtx);
-    auto It = std::find_if(Allocations.begin(), Allocations.end(), [&,DSize, DID] (Allocation &Alloc) {
-      return Alloc.Size == DSize && Alloc.Device == DID;
+    // for (auto &Alloc: Allocations) {
+    //   CLIENT_DBG("Alloc: %d, %p, %ld\n", Alloc.Device, Alloc.TgtPtr, Alloc.Size);
+    // }
+    auto It = std::find_if(Allocations.begin(), Allocations.end(), [&,DSize] (Allocation &Alloc) {
+      return Alloc.Size == DSize && Alloc.Device == I;
     });
     if (It != Allocations.end()) {
-      Ret &= PM->Devices[I]->RTL->data_submit(
-          mapHostRTLDeviceId(I), It->TgtPtr, HstPtr,
+     CLIENT_DBG("Found Alloc: %d, %p, %ld\n", It->Device, It->TgtPtr, It->Size);
+     CLIENT_DBG("Supposed to be: %d (%d), %p, %ld\n", DeviceId, mapHostRTLDeviceId(DeviceId), TgtPtr, DataSize);
+      // Ret &= PM->Devices[It->Device]->RTL->data_submit(
+      //     mapHostRTLDeviceId(It->Device), It->TgtPtr, HstPtr,
+      //     It->Size);
+      Ret &= PM->Devices[It->Device]->RTL->data_submit(
+          It->Device, It->TgtPtr, HstPtr,
+          It->Size);
+      // if (!Ret) {
+      //   CLIENT_DBG("Could not one shot submit data to device %d\n", I);
+      //   llvm::report_fatal_error("errorc could not submit one shot data to device");
+      // }
+    } else {
+      Ret &= PM->Devices[DeviceId]->RTL->data_submit(
+          mapHostRTLDeviceId(DeviceId), TgtPtr, HstPtr,
           DataSize);
-      if (!Ret) {
-        printf("Could not one-shot submit data to device %d", I);
-        llvm::report_fatal_error("error");
-      }
     }
+  }
   }
 
   Interface->send(Interface->EncodeTag(Tag, DataSubmit), Serializer->I32(Ret));

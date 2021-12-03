@@ -110,6 +110,8 @@ int32_t ClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
   CLIENT_DBG("Submitting %ld bytes from %p to %p on device %d", Size, HstPtr,
              TgtPtr, DeviceId)
 
+  if (Size >= 5189760) {
+
   { // If Sent
     std::lock_guard Guard(SentDataMtx);
     if (SentData.contains(HstPtr)) {
@@ -142,23 +144,35 @@ int32_t ClientTy::dataSubmit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
       std::lock_guard Guard(SentDataMtx);
       return SentData.contains(HstPtr);
     });
+
+    return 0;
   } else {
     MessageBufferTy Response;
     {
       std::lock_guard Guard(*Mtx);
-      { // Check if its being sent
+      {
         std::lock_guard InnerGuard(SendingDataMtx);
         SendingData.insert(HstPtr);
       }
       Response =
           send(MessageKind::DataSubmit,
                Serializer->DataSubmit(DeviceId, TgtPtr, HstPtr, Size));
+      {
+        std::lock_guard Guard(SentDataMtx);
+        SentData.insert(HstPtr);
+      }
     }
     CV->notify_all();
-    {
-      std::lock_guard Guard(SentDataMtx);
-      SentData.insert(HstPtr);
-    }
+    auto Value = Serializer->I32(Response);
+    if (!Value)
+      CLIENT_DBG("Submitted %ld bytes from %p to %p on device %d", Size, HstPtr,
+                 TgtPtr, DeviceId)
+    return Value;
+  }
+  } else {
+    auto Response =
+          send(MessageKind::DataSubmit,
+               Serializer->DataSubmit(DeviceId, TgtPtr, HstPtr, Size));
     auto Value = Serializer->I32(Response);
     if (!Value)
       CLIENT_DBG("Submitted %ld bytes from %p to %p on device %d", Size, HstPtr,
