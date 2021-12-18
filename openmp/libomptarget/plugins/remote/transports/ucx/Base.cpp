@@ -34,7 +34,7 @@ EndpointTy::EndpointTy(ucp_worker_h Worker, ucp_conn_request_h ConnRequest) {
   ucp_ep_params_t Params = {
       .field_mask =
           UCP_EP_PARAM_FIELD_ERR_HANDLER | UCP_EP_PARAM_FIELD_CONN_REQUEST,
-      .err_handler = {.cb = errorCallback, .arg = &Connected},
+      .err_handler = {.cb = onError, .arg = &Connected},
       .conn_request = ConnRequest};
 
   if (auto Status = ucp_ep_create(Worker, &Params, &EP))
@@ -53,7 +53,7 @@ EndpointTy::EndpointTy(ucp_worker_h Worker, const ConnectionConfigTy &Config) {
                     UCP_EP_PARAM_FIELD_ERR_HANDLER |
                     UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE,
       .err_mode = UCP_ERR_HANDLING_MODE_PEER,
-      .err_handler = {.cb = errorCallback, .arg = &Connected},
+      .err_handler = {.cb = onError, .arg = &Connected},
       .flags = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER,
       .sockaddr = {.addr = (struct sockaddr *)&ConnectAddress,
                    .addrlen = sizeof(ConnectAddress)}};
@@ -75,7 +75,7 @@ void Base::InterfaceTy::send(uint64_t SlabTag, std::string Message) {
   Fut->Context->Complete = 0;
   ucp_request_param_t Param = {.op_attr_mask = UCP_OP_ATTR_FIELD_CALLBACK |
                                                UCP_OP_ATTR_FIELD_USER_DATA,
-      .cb = {.send = sendCallback},
+      .cb = {.send = onSend},
       .user_data = Fut->Context};
   Fut->Request = (RequestStatus *)ucp_tag_send_nbx(EP, Fut->Message.data(), Fut->Message.length(), SlabTag, &Param);
 
@@ -89,16 +89,15 @@ void Base::InterfaceTy::send(uint64_t SlabTag, std::string Message) {
   SendFutures.emplace(Fut);
 }
 
-bool Base::InterfaceTy::await(SendFutureTy *Future) {
+bool Base::InterfaceTy::isSent(SendFutureTy *Future) {
   if (Future->Request == nullptr)
     return true;
 
-  if (UCS_PTR_IS_ERR(Future->Request)) {
+  if (UCS_PTR_IS_ERR(Future->Request))
     ERR("Failed to send message {0}\n",
         ucs_status_string(UCS_PTR_STATUS(Future->Request)))
-  }
 
-  while (Future->Context->Complete == 0)
+  if (Future->Context->Complete == 0)
     return false;
 
   ucs_status_t Status = ucp_request_check_status(Future->Request);
@@ -135,12 +134,14 @@ MessageTy Base::InterfaceTy::receive(uint64_t SlabTag) {
   ucp_tag_message_h MsgTag;
 
   while (Running) {
-    std::unique_lock Latch(SendFuturesMtx);
-    if (!SendFutures.empty() && await(SendFutures.front())) {
-      delete SendFutures.front();
-      SendFutures.pop();
+    {
+      std::lock_guard Lock(SendFuturesMtx);
+      if (!SendFutures.empty() && isSent(SendFutures.front())) {
+        delete SendFutures.front();
+        SendFutures.pop();
+      }
     }
-    Latch.unlock();
+
     MsgTag = ucp_tag_probe_nb(Worker, SlabTag, TAG_MASK, 1, &InfoTag);
     if (MsgTag != nullptr) {
       break;
@@ -151,6 +152,8 @@ MessageTy Base::InterfaceTy::receive(uint64_t SlabTag) {
     {
       std::lock_guard Guard(Mtx);
       if (Progressed)
+        continue;
+      while (auto Progress = ucp_worker_progress(Worker))
         continue;
       Progressed = ucp_worker_progress(Worker);
       if (Progressed)
@@ -169,7 +172,7 @@ MessageTy Base::InterfaceTy::receive(uint64_t SlabTag) {
   char * ReceiveBuffer = new char[InfoTag.length];
   auto *Request = (RequestStatus *)ucp_tag_msg_recv_nb(
       Worker, ReceiveBuffer, InfoTag.length, ucp_dt_make_contig(1), MsgTag,
-      receiveCallback);
+      onReceive);
 
   wait(Request);
 

@@ -54,6 +54,7 @@ Status RemoteOffloadImpl::UnregisterLib(ServerContext *Context,
 
   SERVER_DBG("Unregistered library")
   Reply->set_number(0);
+  ShutdownPromise.set_value();
   return Status::OK;
 }
 

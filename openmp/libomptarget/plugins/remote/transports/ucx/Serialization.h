@@ -6,28 +6,17 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
-#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 
-#include "llvm/ADT/AllocatorList.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
 
-#include "llvm/Support/Allocator.h"
-
-#include <forward_list>
-#include <functional>
-#include <list>
-
 #include "omptarget.h"
-#include "messages.pb.h"
 
-namespace transport::ucx {
+namespace transport::ucx::messages {
 
-namespace custom {
-class MessageTy {
+class BaseMessageTy {
 protected:
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   void serialize(T &Value) {
@@ -54,45 +43,45 @@ protected:
   void deserialize(void *&BufferStart, void *&BufferEnd);
 
 public:
-  MessageTy() = default;
-  MessageTy(size_t Size);
-  MessageTy(std::string_view MessageBuffer);
-  virtual ~MessageTy() = default;
+  BaseMessageTy() = default;
+  BaseMessageTy(size_t Size);
+  BaseMessageTy(std::string_view MessageBuffer);
+  virtual ~BaseMessageTy() = default;
 
   char* Message;
   char *CurBuffer;
   size_t MessageSize = 0;
 };
 
-struct I32 : public MessageTy {
+struct I32 : public BaseMessageTy {
   int32_t Value;
 
   explicit I32(int32_t Value);
   I32(std::string_view MessageBuffer);
 };
 
-struct I64 : public MessageTy {
+struct I64 : public BaseMessageTy {
   int64_t Value;
 
   explicit I64(int64_t Value);
   I64(std::string_view MessageBuffer);
 };
 
-struct Pointer : public MessageTy {
+struct Pointer : public BaseMessageTy {
   void *Value;
 
   explicit Pointer(uintptr_t Value);
   Pointer(std::string_view MessageBuffer);
 };
 
-struct TargetBinaryDescription : public MessageTy {
+struct TargetBinaryDescription : public BaseMessageTy {
   explicit TargetBinaryDescription(__tgt_bin_desc *TBD);
   TargetBinaryDescription(std::string_view MessageBuffer, __tgt_bin_desc *TBD,
                           std::unordered_map<const void *, __tgt_device_image *>
                               &HostToRemoteDeviceImage);
 };
 
-struct Binary : public MessageTy {
+struct Binary : public BaseMessageTy {
   int32_t DeviceId;
   void *Image;
 
@@ -100,14 +89,14 @@ struct Binary : public MessageTy {
   Binary(std::string_view MessageBuffer);
 };
 
-struct TargetTable : public MessageTy {
+struct TargetTable : public BaseMessageTy {
   __tgt_target_table *Table;
 
   TargetTable(__tgt_target_table *Table);
   TargetTable(std::string_view MessageBuffer);
 };
 
-struct DataAlloc : public MessageTy {
+struct DataAlloc : public BaseMessageTy {
   int32_t DeviceId;
   int64_t AllocSize;
   void *HstPtr;
@@ -116,7 +105,7 @@ struct DataAlloc : public MessageTy {
   DataAlloc(std::string_view MessageBuffer);
 };
 
-struct DataDelete : public MessageTy {
+struct DataDelete : public BaseMessageTy {
   int32_t DeviceId;
   void *TgtPtr;
 
@@ -124,7 +113,7 @@ struct DataDelete : public MessageTy {
   DataDelete(std::string_view MessageBuffer);
 };
 
-struct DataSubmit : public MessageTy {
+struct DataSubmit : public BaseMessageTy {
   int32_t DeviceId;
   void *TgtPtr, *HstPtr;
   int64_t DataSize;
@@ -133,7 +122,7 @@ struct DataSubmit : public MessageTy {
   DataSubmit(std::string_view MessageBuffer);
 };
 
-struct DataRetrieve : public MessageTy {
+struct DataRetrieve : public BaseMessageTy {
   int32_t DeviceId;
   void *TgtPtr;
   int64_t DataSize;
@@ -142,7 +131,7 @@ struct DataRetrieve : public MessageTy {
   DataRetrieve(std::string_view MessageBuffer);
 };
 
-struct Data : public MessageTy {
+struct Data : public BaseMessageTy {
   int32_t Value;
   void *DataBuffer;
   size_t DataSize;
@@ -151,7 +140,7 @@ struct Data : public MessageTy {
   Data(std::string_view MessageBuffer);
 };
 
-struct TargetRegion : public MessageTy {
+struct TargetRegion : public BaseMessageTy {
   int32_t DeviceId;
   void *TgtEntryPtr;
   void **TgtArgs;
@@ -163,7 +152,7 @@ struct TargetRegion : public MessageTy {
   TargetRegion(std::string_view MessageBuffer);
 };
 
-struct TargetTeamRegion : public MessageTy {
+struct TargetTeamRegion : public BaseMessageTy {
   int32_t DeviceId;
   void *TgtEntryPtr;
   void **TgtArgs;
@@ -178,6 +167,5 @@ struct TargetTeamRegion : public MessageTy {
                    int32_t ThreadLimit, uint64_t LoopTripCount);
   TargetTeamRegion(std::string_view MessageBuffer);
 };
-} // namespace custom
 
-} // namespace transport::ucx
+} // namespace transport::ucx::messages

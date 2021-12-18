@@ -214,14 +214,14 @@ __tgt_target_table *ClientTy::loadBinary(int32_t DeviceId,
           CLIENT_DBG("Could not load image %p onto device %d", Image, DeviceId)
           return (__tgt_target_table *)nullptr;
         }
-        DevicesToTables[DeviceId] = std::make_unique<__tgt_target_table>();
-        unloadTargetTable(*Reply, DevicesToTables[DeviceId].get(),
+        auto *TT = new __tgt_target_table;
+        unloadTargetTable(*Reply, TT,
                           RemoteEntries[DeviceId]);
 
         CLIENT_DBG("Loaded Image %p to device %d with %d entries", Image,
                    DeviceId, Reply->entries_size())
 
-        return DevicesToTables[DeviceId].get();
+        return TT;
       },
       /* Error Value */ (__tgt_target_table *)nullptr,
       /* CanTimeOut */ false);
@@ -484,14 +484,6 @@ int32_t ClientTy::runTargetTeamRegion(int32_t DeviceId, void *TgtEntryPtr,
       },
       /* Error Value */ -1,
       /* CanTimeOut */ false);
-}
-
-void ClientTy::shutdown() {
-  ClientContext Context;
-  auto *Reply = protobuf::Arena::CreateMessage<transport::messages::Null>(Arena.get());
-  auto *Request = protobuf::Arena::CreateMessage<transport::messages::Null>(Arena.get());
-
-  auto RPCStatus = Stub->Shutdown(&Context, *Request, Reply);
 }
 
 } // namespace transport::grpc

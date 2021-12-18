@@ -42,7 +42,6 @@ class ClientTy final : public BaseClientTy {
   std::mutex ArenaAllocatorLock;
 
   std::map<int32_t, std::unordered_map<void *, void *>> RemoteEntries;
-  std::map<int32_t, std::unique_ptr<__tgt_target_table>> DevicesToTables;
 
   template <typename Fn1, typename Fn2, typename TReturn>
   auto remoteCall(Fn1 Preprocessor, Fn2 Postprocessor, TReturn ErrorValue,
@@ -57,10 +56,7 @@ public:
     Arena = std::make_unique<protobuf::Arena>();
   }
 
-  ~ClientTy() {
-    for (auto &TableIt : DevicesToTables)
-      freeTargetTable(TableIt.second.get());
-  }
+  ~ClientTy() = default;
 
   int32_t registerLib(__tgt_bin_desc *Desc) override;
   int32_t unregisterLib(__tgt_bin_desc *Desc) override;
@@ -89,8 +85,6 @@ public:
                               int32_t ArgNum, int32_t TeamNum,
                               int32_t ThreadLimit,
                               uint64_t LoopTripCount) override;
-
-  void shutdown() override;
 };
 
 struct ClientManagerTy final : public BaseClientManagerTy {

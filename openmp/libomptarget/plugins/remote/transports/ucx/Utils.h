@@ -13,7 +13,6 @@
 #pragma once
 
 #include "BaseUtils.h"
-#include "messages.pb.h"
 #include "omptarget.h"
 #include "ucp/api/ucp.h"
 #include "ucs/type/status.h"
@@ -32,8 +31,6 @@
   // llvm::report_fatal_error(llvm::formatv(__VA_ARGS__).str());
 
 namespace transport::ucx {
-
-enum class SerializerType { Custom, Protobuf };
 
 struct RequestStatus {
   int Complete;
@@ -98,7 +95,7 @@ enum MessageKind : char {
   DataSubmit,
   DataRetrieve,
   RunTargetRegion,
-  RunTargetTeamRegion,
+  RunTargetTeamsRegion,
   Count
 };
 

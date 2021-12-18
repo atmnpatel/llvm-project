@@ -22,7 +22,7 @@
 std::promise<void> ShutdownPromise;
 
 int main() {
-  auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
+  const auto *Transport = std::getenv("LIBOMPTARGET_RPC_TRANSPORT");
 
   // Prevent hierarchical offloading
   PM->RTLs.BlocklistedRTLs = {"libomptarget.rtl.remote.so"};
@@ -59,20 +59,12 @@ int main() {
   }
 
   if (!strcmp(Transport, "UCX")) {
-    transport::ucx::ServerTy *Server;
+    transport::ucx::ServerTy *Server = new transport::ucx::ServerTy();
 
-    auto *Serialization = std::getenv("LIBOMPTARGET_RPC_SERIALIZATION");
-    if (!Serialization || !strcmp(Serialization, "Custom"))
-      Server = new transport::ucx::ServerTy(transport::ucx::SerializerType::Custom);
-    else if (!strcmp(Serialization, "Protobuf"))
-      Server = new transport::ucx::ServerTy(transport::ucx::SerializerType::Protobuf);
-    else
-      ERR("Invalid Serialization Option")
-
-    auto *ConnectionInfoStr = std::getenv("LIBOMPTARGET_RPC_ADDRESS");
-    auto ConnectionInfo =
+    const auto *ConnectionInfoStr = std::getenv("LIBOMPTARGET_RPC_ADDRESS");
+    const auto ConnectionInfo =
         ConnectionInfoStr ? std::string(ConnectionInfoStr) : ":50051";
-    auto Config = transport::ucx::ConnectionConfigTy(ConnectionInfo);
+    const auto Config = transport::ucx::ConnectionConfigTy(ConnectionInfo);
 
     Server->listenForConnections(Config);
 

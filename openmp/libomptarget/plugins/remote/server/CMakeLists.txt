@@ -24,6 +24,7 @@ add_llvm_executable(openmp-offloading-server
         ${LIBOMPTARGET_SRC_FILES}
         ${GRPC_SRC_FILES}
         ${TRANSPORTS_DIR}/grpc/Server.cpp
+        ${TRANSPORTS_DIR}/grpc/Utils.cpp
         ${TRANSPORTS_DIR}/ucx/Server.cpp
         ${TRANSPORTS_DIR}/ucx/Base.cpp
         ${TRANSPORTS_DIR}/ucx/Serialization.cpp
@@ -36,7 +37,7 @@ add_llvm_executable(openmp-offloading-server
 llvm_update_compile_flags(openmp-offloading-server)
 
 target_compile_features(openmp-offloading-server PRIVATE cxx_std_20)
-target_compile_options(openmp-offloading-server PRIVATE -O3)
+target_compile_options(openmp-offloading-server PRIVATE -g)
 
 add_dependencies(openmp-offloading-server omptarget)
 

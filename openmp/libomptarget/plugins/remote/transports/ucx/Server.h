@@ -13,32 +13,32 @@ namespace transport::ucx {
 
 class ServerTy : public Base {
 protected:
-  /* UCX Interfaces */
+  /// Server UCX Interface.
   std::unique_ptr<InterfaceTy> Interface;
 
-  /* Map Host Device Images to Remote Device Images */
-  std::unordered_map<const void *, __tgt_device_image *>
-      HostToRemoteDeviceImage;
+  /// Map primary host device image pointer to local device image pointer.
+  std::unordered_map<const void *, __tgt_device_image *> LocalDeviceImage;
 
-  /* Function to map host device id to remote device id */
-  static int32_t mapHostRTLDeviceId(int32_t RTLDeviceID);
-
-  /* Forward declaration of Listener */
+  /// Forward declaration of UCX Listener class.
   class ListenerTy;
 
-  /* Worker for transmitting data */
+  /// UCX worker responsible for data communication.
   WorkerTy ConnectionWorker;
 
-  /* Cached Debug Level */
+  /// Cached Debug Level
   uint32_t DebugLevel;
 
-  /* Unique Target Binary Description */
-  __tgt_bin_desc *TBD;
+  /// Target binary description of offloaded program.
+  __tgt_bin_desc *TgtBinDesc;
 
-  int32_t Devices = 0;
+  /// Number of devices found.
+  int32_t NumDevices = 0;
+
+  /// Is server running.
   std::atomic<bool> Running;
 
-  SerializerTy *Serializer;
+  /// Custom serializer.
+  SerializerTy Serializer;
 
   int NumThreads = 8;
   std::mutex QueueMtx;
@@ -48,36 +48,70 @@ protected:
 
   std::queue<std::tuple<uint64_t, MessageKind, std::string>> Tasks;
 
+  /// Start receiving messages from primary host.
+  void receiveMessages();
+
+  /// Stop all threads.
+  void stop();
+
 public:
-  ServerTy(SerializerType Type);
+  ServerTy();
   ~ServerTy();
 
+  /// Start listening for connections.
   void listenForConnections(const ConnectionConfigTy &Config);
 
-  void run();
+  /// Execute received message.
+  void process(uint64_t Tag, MessageKind Kind, std::string_view Message);
+
+  /// Get the number of devices.
   void getNumberOfDevices(uint64_t Tag);
+
+  /// Register library.
   void registerLib(uint64_t Tag, std::string_view Message);
-  void isValidBinary(uint64_t Tag, std::string_view Message);
-  void initRequires(uint64_t Tag, std::string_view Message);
-  void initDevice(uint64_t Tag, std::string_view Message);
-  void loadBinary(uint64_t Tag, std::string_view Message);
-  void dataAlloc(uint64_t Tag, std::string_view Message);
-  void dataSubmit(uint64_t Tag, std::string_view Message);
-  void dataRetrieve(uint64_t Tag, std::string_view Message);
-  void runTargetRegion(uint64_t Tag, std::string_view Message);
-  void runTargetTeamRegion(uint64_t Tag, std::string_view Message);
-  void dataDelete(uint64_t Tag, std::string_view Message);
+
+  /// Unregister library.
   void unregisterLib(uint64_t Tag, std::string_view Message);
 
-  void process(uint64_t Tag, MessageKind Kind, std::string_view Message);
+  /// Check if binary is valid.
+  void isValidBinary(uint64_t Tag, std::string_view Message);
+
+  /// Initialize requires.
+  void initRequires(uint64_t Tag, std::string_view Message);
+
+  /// Initialize device.
+  void initDevice(uint64_t Tag, std::string_view Message);
+
+  /// Load binary.
+  void loadBinary(uint64_t Tag, std::string_view Message);
+
+  /// Allocate memory.
+  void dataAlloc(uint64_t Tag, std::string_view Message);
+
+  /// Free memory.
+  void dataDelete(uint64_t Tag, std::string_view Message);
+
+  /// Move data to device.
+  void dataSubmit(uint64_t Tag, std::string_view Message);
+
+  /// Move data from device.
+  void dataRetrieve(uint64_t Tag, std::string_view Message);
+
+  /// Run target region.
+  void runTargetRegion(uint64_t Tag, std::string_view Message);
+
+  /// Run target teams region.
+  void runTargetTeamsRegion(uint64_t Tag, std::string_view Message);
 };
 
 class ServerTy::ListenerTy {
-  ucp_listener_h *Listener;
+  /// UCX Listener
+  ucp_listener_h Listener;
 
-  static void handleConnectionCallback(ucp_conn_request_h ConnRequest,
+  /// New connection callback.
+  static void newConnection(ucp_conn_request_h ConnRequest,
                                        void *Arg) {
-    ServerContextTy *Context = (ServerContextTy *)Arg;
+    auto *Context = (ServerContextTy *)Arg;
 
     ucp_conn_request_attr_t Attr = {
         .field_mask = UCP_CONN_REQUEST_ATTR_FIELD_CLIENT_ADDR};
@@ -99,8 +133,9 @@ class ServerTy::ListenerTy {
 public:
   ListenerTy(ucp_worker_h Worker, ServerContextTy *Context,
              const ConnectionConfigTy &Config);
-  ~ListenerTy() { ucp_listener_destroy(*Listener); }
+  ~ListenerTy();
 
+  /// Query details of new connection.
   void query();
 };
 

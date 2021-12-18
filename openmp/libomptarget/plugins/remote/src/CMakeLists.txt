@@ -29,6 +29,7 @@ add_llvm_library(omptarget.rtl.remote SHARED
         ${LIBOMPTARGET_SRC_FILES}
         ${GRPC_SRC_FILES}
         ${TRANSPORTS_DIR}/grpc/Client.cpp
+        ${TRANSPORTS_DIR}/grpc/Utils.cpp
         ${TRANSPORTS_DIR}/ucx/Base.cpp
         ${TRANSPORTS_DIR}/ucx/Client.cpp
         ${TRANSPORTS_DIR}/ucx/Serialization.cpp
