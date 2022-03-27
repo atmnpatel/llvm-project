@@ -44,7 +44,8 @@ llvm_update_compile_flags(omptarget.rtl.remote)
 
 target_compile_features(omptarget.rtl.remote PRIVATE cxx_std_20)
 
-target_compile_options(omptarget.rtl.remote PRIVATE -O3)
+# target_compile_options(omptarget.rtl.remote PRIVATE -O3)
+target_compile_options(omptarget.rtl.remote PRIVATE -g)
 
 # Install plugin under the lib destination folder.
 install(TARGETS omptarget.rtl.remote LIBRARY DESTINATION "${OPENMP_INSTALL_LIBDIR}")

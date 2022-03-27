@@ -40,7 +40,7 @@ protected:
   /// Custom serializer.
   SerializerTy Serializer;
 
-  int NumThreads = 8;
+  int NumThreads = 1;
   std::mutex QueueMtx;
   std::atomic<int> BusyThreads;
   std::condition_variable TaskAvailable, TaskFinished;

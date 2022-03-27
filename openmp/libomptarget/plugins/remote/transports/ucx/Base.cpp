@@ -85,8 +85,20 @@ void Base::InterfaceTy::send(uint64_t SlabTag, std::string Message) {
   if (UCS_PTR_IS_ERR(Fut->Request))
     ERR("failed to send message {0}\n", ucs_status_string(UCS_PTR_STATUS(Req)))
 
-  std::lock_guard SendGuard(SendFuturesMtx);
-  SendFutures.emplace(Fut);
+  // std::lock_guard SendGuard(SendFuturesMtx);
+  // SendFutures.emplace(Fut);
+  
+  if (UCS_PTR_IS_ERR(Fut->Request))
+    ERR("Failed to send message {0}\n",
+        ucs_status_string(UCS_PTR_STATUS(Fut->Request)))
+
+  while (Fut->Context->Complete == 0) ucp_worker_progress(Worker);
+
+  ucs_status_t Status = ucp_request_check_status(Fut->Request);
+  ucp_request_free(Fut->Request);
+
+  if (Status != UCS_OK && EP.Connected)
+    ERR("failed to send message {0}\n", ucs_status_string(Status))
 }
 
 bool Base::InterfaceTy::isSent(SendFutureTy *Future) {
@@ -134,32 +146,36 @@ MessageTy Base::InterfaceTy::receive(uint64_t SlabTag) {
   ucp_tag_message_h MsgTag;
 
   while (Running) {
-    {
-      std::lock_guard Lock(SendFuturesMtx);
-      if (!SendFutures.empty() && isSent(SendFutures.front())) {
-        delete SendFutures.front();
-        SendFutures.pop();
-      }
-    }
+    // {
+    //   std::lock_guard Lock(SendFuturesMtx);
+    //   if (!SendFutures.empty() && isSent(SendFutures.front())) {
+    //     delete SendFutures.front();
+    //     SendFutures.pop();
+    //   }
+    // }
 
     MsgTag = ucp_tag_probe_nb(Worker, SlabTag, TAG_MASK, 1, &InfoTag);
     if (MsgTag != nullptr) {
       break;
+    } else if (ucp_worker_progress(Worker)) {
+      continue;
     }
     
-    Progressed = false;
+    // Progressed = false;
 
-    {
-      std::lock_guard Guard(Mtx);
-      if (Progressed)
-        continue;
-      while (auto Progress = ucp_worker_progress(Worker))
-        continue;
-      Progressed = ucp_worker_progress(Worker);
-      if (Progressed)
-        continue;
-      Status = ucp_worker_wait(Worker);
-    }
+    // {
+    //   std::lock_guard Guard(Mtx);
+    //   if (Progressed)
+    //     continue;
+    //   while (auto Progress = ucp_worker_progress(Worker))
+    //     continue;
+    //   Progressed = ucp_worker_progress(Worker);
+    //   if (Progressed)
+    //     continue;
+    //   Status = ucp_worker_wait(Worker);
+    // }
+    //
+    Status = ucp_worker_wait(Worker);
 
     if (Status != UCS_OK) {
       ERR("Failed to recv message {0}", ucs_status_string(Status))
