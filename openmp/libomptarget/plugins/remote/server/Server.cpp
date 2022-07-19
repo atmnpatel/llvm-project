@@ -39,7 +39,7 @@ RemoteOffloadImpl::RegisterLib(ServerContext *Context,
 
   unloadTargetBinaryDescription(Description, Desc.get(),
                                 HostToRemoteDeviceImage);
-  PM->RTLs.RegisterLib(Desc.get());
+  PM->RTLs.registerLib(Desc.get());
 
   if (Descriptions.find((void *)Description->bin_ptr()) != Descriptions.end())
     freeTargetBinaryDescription(
@@ -59,7 +59,7 @@ Status RemoteOffloadImpl::UnregisterLib(ServerContext *Context,
     return Status::OK;
   }
 
-  PM->RTLs.UnregisterLib(Descriptions[(void *)Request->number()].get());
+  PM->RTLs.unregisterLib(Descriptions[(void *)Request->number()].get());
   freeTargetBinaryDescription(Descriptions[(void *)Request->number()].get());
   Descriptions.erase((void *)Request->number());
 
@@ -90,7 +90,7 @@ Status RemoteOffloadImpl::IsValidBinary(ServerContext *Context,
 Status RemoteOffloadImpl::GetNumberOfDevices(ServerContext *Context,
                                              const Null *Null,
                                              I32 *NumberOfDevices) {
-  std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, &PM->RTLs);
+  std::call_once(PM->RTLs.InitFlag, &RTLsTy::loadRTLs, &PM->RTLs);
 
   int32_t Devices = 0;
   PM->RTLsMtx.lock();
@@ -297,12 +297,11 @@ Status RemoteOffloadImpl::RunTargetRegion(ServerContext *Context,
                                           I32 *Reply) {
   std::vector<uint8_t> TgtArgs(Request->arg_num());
   for (auto I = 0; I < Request->arg_num(); I++)
-    TgtArgs[I] = (uint64_t)Request->tgt_args()[I];
+    TgtArgs[I] = (uint64_t)Request->tgt_args(I);
 
   std::vector<ptrdiff_t> TgtOffsets(Request->arg_num());
-  const auto *TgtOffsetItr = Request->tgt_offsets().begin();
-  for (auto I = 0; I < Request->arg_num(); I++, TgtOffsetItr++)
-    TgtOffsets[I] = (ptrdiff_t)*TgtOffsetItr;
+  for (auto I = 0; I < Request->arg_num(); I++)
+    TgtOffsets[I] = (ptrdiff_t) Request->tgt_offsets(I);
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request->tgt_entry_ptr())->addr;
 
@@ -322,12 +321,11 @@ Status RemoteOffloadImpl::RunTargetTeamRegion(ServerContext *Context,
                                               I32 *Reply) {
   std::vector<uint64_t> TgtArgs(Request->arg_num());
   for (auto I = 0; I < Request->arg_num(); I++)
-    TgtArgs[I] = (uint64_t)Request->tgt_args()[I];
+    TgtArgs[I] = (uint64_t)Request->tgt_args(I);
 
   std::vector<ptrdiff_t> TgtOffsets(Request->arg_num());
-  const auto *TgtOffsetItr = Request->tgt_offsets().begin();
-  for (auto I = 0; I < Request->arg_num(); I++, TgtOffsetItr++)
-    TgtOffsets[I] = (ptrdiff_t)*TgtOffsetItr;
+  for (auto I = 0; I < Request->arg_num(); I++)
+    TgtOffsets[I] = (ptrdiff_t)Request->tgt_offsets(I);
 
   void *TgtEntryPtr = ((__tgt_offload_entry *)Request->tgt_entry_ptr())->addr;
 

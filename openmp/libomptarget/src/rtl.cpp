@@ -91,6 +91,12 @@ void RTLsTy::loadRTLs() {
   // Attempt to open all the plugins and, if they exist, check if the interface
   // is correct and if they are supporting any devices.
   for (auto *Name : RTLNames) {
+    auto *BlockedRTL = getenv("LIBOMPTARGET_BLOCK_RTL");
+    if (BlockedRTL && strcmp(BlockedRTL, Name) == 0) {
+      DP("Explicitly skipping library '%s'...\n", Name);
+      continue;
+    }
+
     DP("Loading library '%s'...\n", Name);
     void *DynlibHandle = dlopen(Name, RTLD_NOW);
 

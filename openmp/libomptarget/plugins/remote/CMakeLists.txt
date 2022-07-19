@@ -21,26 +21,16 @@ endif()
 find_package(Protobuf)
 find_package(gRPC CONFIG)
 
-find_program(PROTOC protoc)
-find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
-
-if (Protobuf_FOUND AND gRPC_FOUND AND PROTOC AND GRPC_CPP_PLUGIN)
+if (Protobuf_FOUND AND gRPC_FOUND)
   libomptarget_say("Building remote offloading plugin.")
-  set(directory "${CMAKE_BINARY_DIR}/include/openmp/libomptarget/plugins/remote/")
-  file(MAKE_DIRECTORY ${directory})
-  execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${directory})
-  execute_process(
-          COMMAND protoc --cpp_out=${directory} -I ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/include/openmp.proto
-          COMMAND protoc --grpc_out=${directory} -I ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/include/openmp.proto --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
-  )
 
   set(GRPC_SRC_FILES
-      ${directory}/openmp.grpc.pb.cc
-      ${directory}/openmp.pb.cc
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/openmp.grpc.pb.cc
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/openmp.pb.cc
   )
 
   set(GRPC_INCLUDE_DIR
-      ${directory}
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
   )
 
   set(RPC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/)

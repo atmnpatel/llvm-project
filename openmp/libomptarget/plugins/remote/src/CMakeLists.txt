@@ -32,6 +32,7 @@ add_library(omptarget.rtl.rpc SHARED
 install(TARGETS omptarget.rtl.rpc LIBRARY DESTINATION "${OPENMP_INSTALL_LIBDIR}")
 
 target_link_libraries(omptarget.rtl.rpc
+  grpc
   grpc++
   protobuf
   absl::synchronization
